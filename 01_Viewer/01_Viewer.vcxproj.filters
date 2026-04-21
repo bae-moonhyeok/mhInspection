@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="LTUILIB">
+      <UniqueIdentifier>{5ea1e992-6943-4c84-aace-7ce173c4f586}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="01_Viewer.h">
@@ -31,6 +34,18 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="pch.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="LTUILIB\lib\lt_lib\include\lt\lt_type.h">
+      <Filter>LTUILIB</Filter>
+    </ClInclude>
+    <ClInclude Include="LTUILIB\lib\lt_lib\include\lt\UIPackage\BCMenu.h">
+      <Filter>LTUILIB</Filter>
+    </ClInclude>
+    <ClInclude Include="LTUILIB\lib\lt_lib\include\lt\UIPackage\ImageViewEx.h">
+      <Filter>LTUILIB</Filter>
+    </ClInclude>
+    <ClInclude Include="Constants.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
   </ItemGroup>

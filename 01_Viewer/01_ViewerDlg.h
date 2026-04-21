@@ -4,12 +4,16 @@
 
 #pragma once
 
+#include "ImageViewEx.h"
+
 // CMy01ViewerDlg 대화 상자
 class CMy01ViewerDlg : public CDialogEx
 {
 // 생성입니다.
 public:
 	CMy01ViewerDlg(CWnd* pParent = nullptr);	// 표준 생성자입니다.
+
+	void UserInit();
 
 // 대화 상자 데이터입니다.
 #ifdef AFX_DESIGN_TIME
@@ -31,4 +35,10 @@ protected:
 public:
 	afx_msg void OnBnClickedOk();
 	afx_msg void OnBnClickedCancel();
+	afx_msg void OnDestroy();
+	afx_msg void OnBnClickedBtnSave();
+	afx_msg void OnBnClickedBtnLoad();
+
+private:
+	lt::CImageViewEx* m_WndImageView = nullptr;
 };

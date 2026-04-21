@@ -8,6 +8,8 @@
 #include "01_ViewerDlg.h"
 #include "afxdialogex.h"
 
+#include "Constants.h"
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -18,11 +20,15 @@ CMy01ViewerDlg::CMy01ViewerDlg(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_MY01_VIEWER_DIALOG, pParent)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+
+	m_WndImageView = new lt::CImageViewEx;
 }
 
 void CMy01ViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+
+	DDX_Control(pDX, IDC_STATIC_VIEW, *m_WndImageView);
 }
 
 BEGIN_MESSAGE_MAP(CMy01ViewerDlg, CDialogEx)
@@ -30,9 +36,28 @@ BEGIN_MESSAGE_MAP(CMy01ViewerDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDOK, &CMy01ViewerDlg::OnBnClickedOk)
 	ON_BN_CLICKED(IDCANCEL, &CMy01ViewerDlg::OnBnClickedCancel)
+	ON_WM_DESTROY()
+	ON_BN_CLICKED(IDC_BTN_SAVE, &CMy01ViewerDlg::OnBnClickedBtnSave)
+	ON_BN_CLICKED(IDC_BTN_LOAD, &CMy01ViewerDlg::OnBnClickedBtnLoad)
 END_MESSAGE_MAP()
 
 // CMy01ViewerDlg 메시지 처리기
+
+void CMy01ViewerDlg::UserInit()
+{
+	// 대화상자 크기를 조정합니다.
+	::SetWindowPos(m_hWnd, NULL, 0, 0, monitor_cx, monitor_cy - taskbar_cy, SWP_NONE);
+
+	CWnd* pWnd = GetDlgItem(IDC_BTN_LOAD);
+	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5, caption_cy + 2, 48, 24, SWP_NONE);
+	pWnd = GetDlgItem(IDC_BTN_SAVE);
+	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5 + 48 + 5, caption_cy + 2, 48, 24, SWP_NONE);
+
+	pWnd = GetDlgItem(IDC_STATIC_VIEW);
+	pWnd->SetWindowPos(NULL, margin_cx, caption_cy + margin_cy, view_cx, view_cy, SWP_NONE);
+
+	m_WndImageView->SetMinimumZoomRatio(100);
+}
 
 BOOL CMy01ViewerDlg::OnInitDialog()
 {
@@ -44,6 +69,7 @@ BOOL CMy01ViewerDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
+	UserInit();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -89,3 +115,20 @@ void CMy01ViewerDlg::OnBnClickedOk() { /*CDialogEx::OnOK();*/ }
 void CMy01ViewerDlg::OnBnClickedCancel() { CDialogEx::OnCancel(); }
 
 
+
+void CMy01ViewerDlg::OnDestroy()
+{
+	CDialogEx::OnDestroy();
+
+	delete m_WndImageView;
+}
+
+void CMy01ViewerDlg::OnBnClickedBtnSave()
+{
+	
+}
+
+void CMy01ViewerDlg::OnBnClickedBtnLoad()
+{
+	
+}

@@ -6,7 +6,6 @@
 #define IDR_MAINFRAME                   128
 #define IDC_STATIC_VIEW                 1000
 #define IDC_BTN_SAVE                    1001
-#define IDC_BUTTON2                     1002
 #define IDC_BTN_LOAD                    1002
 
 // Next default values for new objects
