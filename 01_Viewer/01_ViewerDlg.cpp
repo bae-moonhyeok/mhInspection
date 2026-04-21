@@ -110,11 +110,8 @@ HCURSOR CMy01ViewerDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-
 void CMy01ViewerDlg::OnBnClickedOk() { /*CDialogEx::OnOK();*/ }
 void CMy01ViewerDlg::OnBnClickedCancel() { CDialogEx::OnCancel(); }
-
-
 
 void CMy01ViewerDlg::OnDestroy()
 {
@@ -130,5 +127,43 @@ void CMy01ViewerDlg::OnBnClickedBtnSave()
 
 void CMy01ViewerDlg::OnBnClickedBtnLoad()
 {
-	
+	// 1. 파일 확장자 필터 설정 (이미지 파일 위주)
+	TCHAR szFilters[] = _T("Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*||");
+
+	// 2. 파일 대화상자 객체 생성 (TRUE: 열기, FALSE: 저장)
+	CFileDialog fileDlg(TRUE, _T("jpg"), NULL, OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters, this);
+
+	// 3. 대화상자 실행 및 확인 버튼 클릭 여부 체크
+	if (fileDlg.DoModal() == IDOK)
+	{
+		// 선택된 파일의 전체 경로 가져오기
+		CString strFilePath = fileDlg.GetPathName();
+
+		// 4. 경로 예외 처리: 파일이 실제로 존재하는지 다시 확인
+		if (GetFileAttributes(strFilePath) == INVALID_FILE_ATTRIBUTES)
+		{
+			AfxMessageBox(_T("선택한 파일 경로가 올바르지 않거나 파일이 존재하지 않습니다."), MB_ICONERROR);
+			return;
+		}
+
+		// 5. 이미지 불러오기 로직 수행
+		BOOL result = m_WndImageView->LoadImage(strFilePath);
+		
+		if (result)
+		{
+			// TODO: Picture Control 등에 그리는 코드 추가
+
+			// 불러오기 성공 시 처리 (예: 화면 갱신 등)
+			AfxMessageBox(_T("이미지를 성공적으로 불러왔습니다: ") + strFilePath);
+		}
+		else
+		{
+			AfxMessageBox(_T("이미지를 로드하는 데 실패했습니다."), MB_ICONERROR);
+		}
+	}
+	else
+	{
+		// 사용자가 취소를 눌렀을 때의 처리 (필요 시)
+		OutputDebugString(_T("사용자가 파일 선택을 취소했습니다.\n"));
+	}
 }

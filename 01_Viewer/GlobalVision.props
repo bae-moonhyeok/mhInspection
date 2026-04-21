@@ -7,6 +7,9 @@
     <ClCompile>
       <AdditionalIncludeDirectories>./LTUILIB/lib/lt_lib/include/;./LTUILIB/lib/lt_lib/include/lt/UIPackage/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
+    <Link>
+      <AdditionalOptions>/wd"001" %(AdditionalOptions)</AdditionalOptions>
+    </Link>
   </ItemDefinitionGroup>
   <ItemGroup />
 </Project>
