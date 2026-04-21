@@ -8,14 +8,26 @@
 #define IDC_BTN_SAVE                    1001
 #define IDC_BTN_LOAD                    1002
 #define IDC_BTN_LOAD2                   1003
+#define IDC_EDIT_RAW_WIDTH              1010
+#define IDC_EDIT_RAW_HEIGHT             1011
+#define IDC_EDIT_RAW_BPP                1012
+#define IDC_CMB_RAW_CAPFMT              1013
+#define IDC_CMB_RAW_COLORORDER          1014
+#define IDC_BTN_RAW_APPLY               1015
+#define IDC_STATIC_RAW_WIDTH            1020
+#define IDC_STATIC_RAW_HEIGHT           1021
+#define IDC_STATIC_RAW_BPP              1022
+#define IDC_STATIC_RAW_CAPFMT           1023
+#define IDC_STATIC_RAW_COLORORDER       1024
+#define IDC_STATIC_RAW_GROUP            1025
 
 // Next default values for new objects
-// 
+//
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1002
+#define _APS_NEXT_CONTROL_VALUE         1030
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -9,6 +9,15 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
 
+struct RawImageSettings
+{
+	int nWidth = 1280;
+	int nHeight = 800;
+	int nBpp = 10;
+	int nCaptureFormat = 0;		// 0=Gray, 1=Bayer, 2=RGB, 3=YUV
+	int nColorOrder = 0;		// 0=None, 1=RGGB, 2=BGGR, 3=GRBG, 4=GBRG, 5=RGB, 6=BGR
+};
+
 // CMy01ViewerDlg 대화 상자
 class CMy01ViewerDlg : public CDialogEx
 {
@@ -41,20 +50,26 @@ public:
 	afx_msg void OnDestroy();
 	afx_msg void OnBnClickedBtnSave();
 	afx_msg void OnBnClickedBtnLoad();
+	afx_msg void OnBnClickedBtnRawApply();
 
 private:
 	lt::CImageViewEx* m_WndImageView = nullptr;
-	
-	UINT32* m_pOriginImage = nullptr;
-	lt::IMAGE_INFO m_imageInfo = {};
-	CRect m_rtView;
 
 	cv::Mat m_matCopy;
 
-public:
-	//bool CImageViewEx2ImageFile(const wchar_t* strFilePath, cv::Mat& matImage);
-	//bool CImageViewEx2ImageFile(UINT32* pData);
-	//bool CImageViewEx2ImageFile(const wchar_t* strFilePath, UINT32* pData);
+	RawImageSettings m_rawSettings;
 
-	//void ResizeImage(CDC* pDC, CImage& img);
+	CStatic  m_stRawGroup;
+	CStatic  m_stRawWidth, m_stRawHeight, m_stRawBpp, m_stRawCapFmt, m_stRawColorOrder;
+	CEdit    m_edRawWidth, m_edRawHeight, m_edRawBpp;
+	CComboBox m_cmbRawCapFmt, m_cmbRawColorOrder;
+	CButton  m_btnRawApply;
+
+	void CreateRawSettingsUI();
+	CString GetSettingsFilePath() const;
+	void LoadRawSettings();
+	void SaveRawSettings();
+	void UpdateUIFromSettings();
+	bool UpdateSettingsFromUI();
+	bool LoadRawFile(LPCTSTR szPath, cv::Mat& matOut);
 };
