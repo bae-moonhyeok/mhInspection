@@ -8,3 +8,6 @@ constexpr int taskbar_cy =   40;
 
 constexpr int view_cx	 = 1296;
 constexpr int view_cy	 =  972;
+
+constexpr int image_cx	 = 2592;
+constexpr int image_cy	 = 1944;

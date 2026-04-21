@@ -6,6 +6,9 @@
 
 #include "ImageViewEx.h"
 
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
+
 // CMy01ViewerDlg 대화 상자
 class CMy01ViewerDlg : public CDialogEx
 {
@@ -41,4 +44,17 @@ public:
 
 private:
 	lt::CImageViewEx* m_WndImageView = nullptr;
+	
+	UINT32* m_pOriginImage = nullptr;
+	lt::IMAGE_INFO m_imageInfo = {};
+	CRect m_rtView;
+
+	cv::Mat m_matCopy;
+
+public:
+	//bool CImageViewEx2ImageFile(const wchar_t* strFilePath, cv::Mat& matImage);
+	//bool CImageViewEx2ImageFile(UINT32* pData);
+	//bool CImageViewEx2ImageFile(const wchar_t* strFilePath, UINT32* pData);
+
+	//void ResizeImage(CDC* pDC, CImage& img);
 };

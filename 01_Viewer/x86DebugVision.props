@@ -6,7 +6,7 @@
   <ItemDefinitionGroup>
     <Link>
       <AdditionalLibraryDirectories>./LTUILIB/lib/lt_lib/$(PlatformTarget)/lib/;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>lt_ui_packaged.lib</AdditionalDependencies>
+      <AdditionalDependencies>lt_ui_packaged.lib;opencv_calib3d480d.lib;opencv_core480d.lib;opencv_dnn480d.lib;opencv_features2d480d.lib;opencv_flann480d.lib;opencv_gapi480d.lib;opencv_highgui480d.lib;opencv_imgcodecs480d.lib;opencv_imgproc480d.lib;opencv_ml480d.lib;opencv_objdetect480d.lib;opencv_photo480d.lib;opencv_stitching480d.lib;opencv_video480d.lib;opencv_videoio480d.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />

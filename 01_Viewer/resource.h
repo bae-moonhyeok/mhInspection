@@ -3,11 +3,11 @@
 // My01Viewer.rc에서 사용되고 있습니다.
 //
 #define IDD_MY01_VIEWER_DIALOG          102
-#define IDD_DLG_VIEWER                  102
 #define IDR_MAINFRAME                   128
 #define IDC_STATIC_VIEW                 1000
 #define IDC_BTN_SAVE                    1001
 #define IDC_BTN_LOAD                    1002
+#define IDC_BTN_LOAD2                   1003
 
 // Next default values for new objects
 // 

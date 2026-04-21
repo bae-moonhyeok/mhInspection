@@ -31,6 +31,82 @@ void CMy01ViewerDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_STATIC_VIEW, *m_WndImageView);
 }
 
+//bool CMy01ViewerDlg::CImageViewEx2ImageFile(const wchar_t* strFilePath, cv::Mat& matImage)
+//{
+//	if (matImage.empty()) return false;
+//
+//	// 파일 저장 대화상자 설정
+//	TCHAR szFilter[] = _T("JPG 파일(*.jpg)|*.jpg|PNG 파일(*.png)|*.png|BMP 파일(*.bmp)|*.bmp|모든 파일(*.*)|*.*||");
+//	CFileDialog dlg(FALSE, _T("jpg"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, szFilter);
+//
+//	if (dlg.DoModal() == IDOK)
+//	{
+//		CString strPath = dlg.GetPathName();
+//
+//		// CString을 std::string으로 변환 (OpenCV 대응)
+//		CT2CA pszConvertedAnsiString(strPath);
+//		std::string strPathStd(pszConvertedAnsiString);
+//
+//		if (cv::imwrite(strPathStd, matImage))
+//		{
+//			AfxMessageBox(_T("성공적으로 저장되었습니다."));
+//		}
+//		else
+//		{
+//			AfxMessageBox(_T("저장에 실패했습니다."));
+//		}
+//	}
+//
+//	return true;
+//}
+//
+//bool CMy01ViewerDlg::CImageViewEx2ImageFile(UINT32* pData)
+//{
+//	if (pData == nullptr) return false;
+//
+//	CFileDialog dlg(FALSE, _T("png"), NULL, OFN_OVERWRITEPROMPT, _T("PNG 파일(*.png)|*.png||"));
+//
+//	if (dlg.DoModal() == IDOK)
+//	{
+//		// Raw 데이터를 Mat 객체로 생성 (복사하지 않고 주소만 참조)
+//		// 8-bit, 1-channel 3-channel 4-channel (RGBA) 기준 예시
+//	
+//		CString pszPath(dlg.GetPathName());
+//		if (m_WndImageView->SaveImage(pszPath))
+//		{
+//			AfxMessageBox(_T("저장 성공"));
+//		}
+//	}
+//
+//	return true;
+//}
+//
+//bool CMy01ViewerDlg::CImageViewEx2ImageFile(const wchar_t* strFilePath, UINT32* pData)
+//{
+//	if (pData == nullptr) return false;
+//
+//	CFileDialog dlg(FALSE, _T("png"), NULL, OFN_OVERWRITEPROMPT, _T("PNG 파일(*.png)|*.png||"));
+//
+//	if (dlg.DoModal() == IDOK)
+//	{
+//		
+//		// Raw 데이터를 Mat 객체로 생성 (복사하지 않고 주소만 참조)
+//		// 8-bit, 1-channel 3-channel 4-channel (RGBA) 기준 예시
+//		const int CV_TYPE = m_imageInfo.nBitPP == 32 ? CV_8UC4 :
+//			m_imageInfo.nBitPP == 24 ? CV_8UC3 : CV_8UC1;
+//		
+//		cv::Mat matImage(image_cy, image_cx, CV_TYPE, pData);
+//
+//		CT2CA pszPath(dlg.GetPathName());
+//		if (cv::imwrite((std::string)pszPath, matImage))
+//		{
+//			AfxMessageBox(_T("저장 성공"));
+//		}
+//	}
+//
+//	return true;
+//}
+
 BEGIN_MESSAGE_MAP(CMy01ViewerDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
@@ -55,6 +131,7 @@ void CMy01ViewerDlg::UserInit()
 
 	pWnd = GetDlgItem(IDC_STATIC_VIEW);
 	pWnd->SetWindowPos(NULL, margin_cx, caption_cy + margin_cy, view_cx, view_cy, SWP_NONE);
+	pWnd->GetWindowRect(&m_rtView);
 
 	m_WndImageView->SetMinimumZoomRatio(100);
 }
@@ -122,48 +199,97 @@ void CMy01ViewerDlg::OnDestroy()
 
 void CMy01ViewerDlg::OnBnClickedBtnSave()
 {
-	
+	if (m_matCopy.empty())
+	{
+		AfxMessageBox(_T("먼저 이미지를 불러오세요."), MB_ICONWARNING);
+		return;
+	}
+
+	TCHAR szFilter[] = _T("JPG 파일(*.jpg)|*.jpg|PNG 파일(*.png)|*.png|BMP 파일(*.bmp)|*.bmp|모든 파일(*.*)|*.*||");
+	CFileDialog dlg(FALSE, _T("jpg"), NULL, OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, szFilter, this);
+
+	if (dlg.DoModal() != IDOK) return;
+
+	CString strPath = dlg.GetPathName();
+	CT2CA pszConvertedAnsiString(strPath);
+	std::string strPathStd(pszConvertedAnsiString);
+
+	if (cv::imwrite(strPathStd, m_matCopy))
+		AfxMessageBox(_T("성공적으로 저장되었습니다."));
+	else
+		AfxMessageBox(_T("저장에 실패했습니다."));
 }
+
+//void CMy01ViewerDlg::ResizeImage(CDC* pDC, CImage& img)
+//{
+//	int iw = img.GetWidth(), ih = img.GetHeight();
+//	double rx = (double)m_rtView.Width() / iw;
+//	double ry = (double)m_rtView.Height() / ih;
+//	double r = std::min(1.0, std::min(rx, ry));
+//	int dw = (int)(iw * r), dh = (int)(ih * r);
+//	int dx = m_rtView.left + (m_rtView.Width() - dw) / 2;
+//	int dy = m_rtView.top + (m_rtView.Height() - dh) / 2;
+//
+//	pDC->SetStretchBltMode(HALFTONE);
+//	::SetBrushOrgEx(pDC->GetSafeHdc(), 0, 0, NULL);
+//	m_WndImageView->UpdateImageFromArray((PBYTE)img.GetBits(), rx, ry, m_imageInfo.nBitPP);
+//}
 
 void CMy01ViewerDlg::OnBnClickedBtnLoad()
 {
-	// 1. 파일 확장자 필터 설정 (이미지 파일 위주)
 	TCHAR szFilters[] = _T("Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*||");
-
-	// 2. 파일 대화상자 객체 생성 (TRUE: 열기, FALSE: 저장)
 	CFileDialog fileDlg(TRUE, _T("jpg"), NULL, OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilters, this);
 
-	// 3. 대화상자 실행 및 확인 버튼 클릭 여부 체크
-	if (fileDlg.DoModal() == IDOK)
+	if (fileDlg.DoModal() != IDOK)
 	{
-		// 선택된 파일의 전체 경로 가져오기
-		CString strFilePath = fileDlg.GetPathName();
-
-		// 4. 경로 예외 처리: 파일이 실제로 존재하는지 다시 확인
-		if (GetFileAttributes(strFilePath) == INVALID_FILE_ATTRIBUTES)
-		{
-			AfxMessageBox(_T("선택한 파일 경로가 올바르지 않거나 파일이 존재하지 않습니다."), MB_ICONERROR);
-			return;
-		}
-
-		// 5. 이미지 불러오기 로직 수행
-		BOOL result = m_WndImageView->LoadImage(strFilePath);
-		
-		if (result)
-		{
-			// TODO: Picture Control 등에 그리는 코드 추가
-
-			// 불러오기 성공 시 처리 (예: 화면 갱신 등)
-			AfxMessageBox(_T("이미지를 성공적으로 불러왔습니다: ") + strFilePath);
-		}
-		else
-		{
-			AfxMessageBox(_T("이미지를 로드하는 데 실패했습니다."), MB_ICONERROR);
-		}
-	}
-	else
-	{
-		// 사용자가 취소를 눌렀을 때의 처리 (필요 시)
 		OutputDebugString(_T("사용자가 파일 선택을 취소했습니다.\n"));
+		return;
 	}
+
+	CString strFilePath = fileDlg.GetPathName();
+
+	if (GetFileAttributes(strFilePath) == INVALID_FILE_ATTRIBUTES)
+	{
+		AfxMessageBox(_T("선택한 파일 경로가 올바르지 않거나 파일이 존재하지 않습니다."), MB_ICONERROR);
+		return;
+	}
+
+	CT2CA pszConvertedAnsiString(strFilePath);
+	std::string strPathStd(pszConvertedAnsiString);
+
+	cv::Mat matLoaded = cv::imread(strPathStd, cv::IMREAD_UNCHANGED);
+	if (matLoaded.empty())
+	{
+		AfxMessageBox(_T("이미지를 로드하는 데 실패했습니다."), MB_ICONERROR);
+		return;
+	}
+
+	// 불러온 직후 사본 이미지 생성 (저장 시 사용)
+	m_matCopy = matLoaded.clone();
+
+	// 1296*972 보다 큰 경우 이미지 크기 축소
+	if (matLoaded.cols > view_cx || matLoaded.rows > view_cy)
+	{
+		double r = std::min((double)view_cx / matLoaded.cols, (double)view_cy / matLoaded.rows);
+		cv::Mat matResized;
+		cv::resize(matLoaded, matResized, cv::Size(), r, r, cv::INTER_AREA);
+		matLoaded = matResized;
+	}
+
+	// 출력용: 컬러로 변환
+	cv::Mat matDisp;
+	if (matLoaded.channels() == 1)
+		cv::cvtColor(matLoaded, matDisp, cv::COLOR_GRAY2BGR);
+	else if (matLoaded.channels() == 4)
+		cv::cvtColor(matLoaded, matDisp, cv::COLOR_BGRA2BGR);
+	else
+		matDisp = matLoaded;
+
+	// CImageViewEx에 출력 (pitch 포함 bitmap array 사용)
+	WORD wBpp = (WORD)(matDisp.channels() * 8);
+	m_WndImageView->UpdateImageFromBitmapArray(
+		matDisp.data, matDisp.cols, (LONG)matDisp.step, matDisp.rows, wBpp, TRUE);
+	m_WndImageView->InvalidateDirect(FALSE);
+
+	m_imageInfo = m_WndImageView->GetOverlayBitmapImageInfo_Color();
 }

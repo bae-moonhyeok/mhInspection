@@ -5,10 +5,11 @@
   <PropertyGroup />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>./LTUILIB/lib/lt_lib/include/;./LTUILIB/lib/lt_lib/include/lt/UIPackage/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>./LTUILIB/lib/lt_lib/include/;./LTUILIB/lib/lt_lib/include/lt/UIPackage/;C:\opencv4.8\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalOptions>/wd"001" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalLibraryDirectories>C:\opencv4.8\$(Configuration)\vc15\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup />
