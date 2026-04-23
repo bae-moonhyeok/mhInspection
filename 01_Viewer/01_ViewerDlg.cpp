@@ -29,6 +29,7 @@ void CMy01ViewerDlg::DoDataExchange(CDataExchange* pDX)
 	CDialogEx::DoDataExchange(pDX);
 
 	DDX_Control(pDX, IDC_STATIC_VIEW, *m_WndImageView);
+	DDX_Control(pDX, IDC_LIST_LOG, m_listLog);
 }
 
 BEGIN_MESSAGE_MAP(CMy01ViewerDlg, CDialogEx)
@@ -60,6 +61,9 @@ void CMy01ViewerDlg::UserInit()
 
 	pWnd = GetDlgItem(IDC_BTN_DLG);
 	pWnd->SetWindowPos(NULL, monitor_cx - margin_cx - 120 - 14, -taskbar_cy + monitor_cy - margin_cy - 120, 120, 80, SWP_NONE);
+
+	pWnd = GetDlgItem(IDC_LIST_LOG);
+	pWnd->SetWindowPos(NULL, monitor_cx - margin_cx - 560 - 14, -taskbar_cy + monitor_cy - margin_cy - 360, 560, 80, SWP_NONE);
 
 	m_WndImageView->SetMinimumZoomRatio(100);
 
@@ -457,6 +461,16 @@ void CMy01ViewerDlg::CleanUpInpsectionDialog()
 	// 자식 대화상자에 필요했던 이미지 버퍼를 해제한다.
 	delete[] m_ImageBuffer;
 	m_ImageBuffer = nullptr;
+
+	// 자식 대화상자 종료 후 메인 뷰(IDC_STATIC_VIEW)를 원본 이미지로 갱신한다.
+	// — 직전에 Result 로 출력 중이던 내용을 초기화하고 Origin 상태로 복귀.
+	if (!m_matCopy.empty())
+	{
+		WORD wBpp = (WORD)(m_matCopy.channels() * 8);
+		m_WndImageView->UpdateImageFromArray(
+			m_matCopy.data, m_matCopy.cols, m_matCopy.rows, wBpp, FALSE);
+		m_WndImageView->InvalidateDirect(FALSE);
+	}
 }
 
 LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
@@ -464,6 +478,7 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 	if (message == WM_CLOSE_VISION_TEST_DLG)
 	{
 		CleanUpInpsectionDialog();
+		AddLog(TEXT("자식 대화 상자가 종료되었습니다."));
 	}
 	else if (message == WM_UPDATE_VIEW)
 	{
@@ -489,4 +504,34 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 	}
 
 	return CDialogEx::WindowProc(message, wParam, lParam);
+}
+
+void CMy01ViewerDlg::AddLog(const wchar_t* str)
+{
+/* 초 단위 */
+	// 1. 현재 시간 객체 생성
+	CTime now = CTime::GetCurrentTime();
+
+	// 2. 원하는 포맷으로 문자열 생성
+	// 결과 예: "현재 시간: 2026-04-23 16:21:39"
+	m_strTime.Format(_T("[%s] %s"), 
+		now.Format(_T("%Y-%m-%d %H:%M:%S")), str);
+	m_listLog.InsertString(-1, m_strTime);
+
+/*밀리초 단위*/
+	// 1. 시스템 시간 구조체 선언 및 값 얻기
+	SYSTEMTIME st;
+	GetLocalTime(&st);
+
+	// 2. CTime 객체로 변환 (날짜/시간 계산이 필요한 경우)
+	CTime currentTime(st);
+
+	// 3. 밀리초를 포함하여 포맷팅
+	m_strTime.Format(_T("[%04d-%02d-%02d %02d:%02d:%02d.%03d] %s"),
+		st.wYear, st.wMonth, st.wDay,
+		st.wHour, st.wMinute, st.wSecond, st.wMilliseconds, // wMilliseconds가 ms 단위입니다.
+		str);
+
+	int index = m_listLog.InsertString(-1, m_strTime);
+	m_listLog.SetCurSel(index);
 }

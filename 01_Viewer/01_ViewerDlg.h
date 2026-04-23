@@ -85,4 +85,11 @@ private:
 	void RefreshInpsectionDialogImage(size_t bytes);
 	void InitProcessedImage();
 	const cv::Mat& GetViewImage();
+
+	CListBox m_listLog;
+	CString m_strTime;
+
+	void AddLog(const wchar_t* str);
+
+	// TODO: 자식 대화상자로부터 요청된 IDC_LIST_LOG 로깅 위한 작업
 };

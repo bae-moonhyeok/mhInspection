@@ -63,6 +63,11 @@ private:
 	// 3x3 커널을 통해 컨볼루션 연산을 수행한다.
 	void ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel);
 
+	// 커널 설정 파일 입출력 (exe 폴더의 viewer.ini, [Kernel] 섹션)
+	CString GetKernelSettingsPath() const;
+	void LoadKernelSettings();
+	void SaveKernelSettings();
+
 public:
 	void InitProcessedImage(const BYTE* pSrc, int width, int height, int channel);
 	void CleanProcessedImage();
@@ -84,4 +89,6 @@ private:
 
 	// 커널 입력용 9개 EditBox (행 우선: [0..2]=1행, [3..5]=2행, [6..8]=3행)
 	CEdit m_edKernel[9];
+
+	// TODO: 부모 대화상자 IDC_LIST_LOG 로깅 위한 작업
 };
