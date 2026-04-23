@@ -4,10 +4,10 @@
 //
 #define IDD_MY01_VIEWER_DIALOG          102
 #define IDR_MAINFRAME                   128
+#define IDD_DLG_VISION_TEST             130
 #define IDC_STATIC_VIEW                 1000
 #define IDC_BTN_SAVE                    1001
 #define IDC_BTN_LOAD                    1002
-#define IDC_BTN_LOAD2                   1003
 #define IDC_EDIT_RAW_WIDTH              1010
 #define IDC_EDIT_RAW_HEIGHT             1011
 #define IDC_EDIT_RAW_BPP                1012
@@ -20,14 +20,20 @@
 #define IDC_STATIC_RAW_CAPFMT           1023
 #define IDC_STATIC_RAW_COLORORDER       1024
 #define IDC_STATIC_RAW_GROUP            1025
+#define IDC_BTN_DLG                     1030
+#define IDC_RADIO_ORIGIN                1031
+#define IDC_RADIO_RESULT                1032
+#define IDC_BTN_IMAGE_PROCESS           1033
+#define IDC_BTN_CLOSE                   1034
+#define IDC_STATIC_KERNER3X3            1035
 
 // Next default values for new objects
-//
+// 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        130
+#define _APS_NEXT_RESOURCE_VALUE        132
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1030
+#define _APS_NEXT_CONTROL_VALUE         1036
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

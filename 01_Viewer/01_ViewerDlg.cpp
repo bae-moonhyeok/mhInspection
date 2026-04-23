@@ -40,6 +40,7 @@ BEGIN_MESSAGE_MAP(CMy01ViewerDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_SAVE, &CMy01ViewerDlg::OnBnClickedBtnSave)
 	ON_BN_CLICKED(IDC_BTN_LOAD, &CMy01ViewerDlg::OnBnClickedBtnLoad)
 	ON_BN_CLICKED(IDC_BTN_RAW_APPLY, &CMy01ViewerDlg::OnBnClickedBtnRawApply)
+	ON_BN_CLICKED(IDC_BTN_DLG, &CMy01ViewerDlg::OnBnClickedBtnDlg)
 END_MESSAGE_MAP()
 
 // CMy01ViewerDlg 메시지 처리기
@@ -50,12 +51,15 @@ void CMy01ViewerDlg::UserInit()
 	::SetWindowPos(m_hWnd, NULL, 0, 0, monitor_cx, monitor_cy - taskbar_cy, SWP_NONE);
 
 	CWnd* pWnd = GetDlgItem(IDC_BTN_LOAD);
-	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5, caption_cy + 2, 48, 24, SWP_NONE);
+	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5, caption_cy + 2, 120, 80, SWP_NONE);
 	pWnd = GetDlgItem(IDC_BTN_SAVE);
-	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5 + 48 + 5, caption_cy + 2, 48, 24, SWP_NONE);
+	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5 + 120 + 5, caption_cy + 2, 120, 80, SWP_NONE);
 
 	pWnd = GetDlgItem(IDC_STATIC_VIEW);
 	pWnd->SetWindowPos(NULL, margin_cx, caption_cy + margin_cy, view_cx, view_cy, SWP_NONE);
+
+	pWnd = GetDlgItem(IDC_BTN_DLG);
+	pWnd->SetWindowPos(NULL, monitor_cx - margin_cx - 120 - 14, -taskbar_cy + monitor_cy - margin_cy - 120, 120, 80, SWP_NONE);
 
 	m_WndImageView->SetMinimumZoomRatio(100);
 
@@ -90,8 +94,6 @@ void CMy01ViewerDlg::LoadRawSettings()
 
 	m_rawSettings.nWidth         = ::GetPrivateProfileInt(sec, _T("Width"),        1280, strIni);
 	m_rawSettings.nHeight        = ::GetPrivateProfileInt(sec, _T("Height"),        800, strIni);
-	m_rawSettings.nBpp           = ::GetPrivateProfileInt(sec, _T("BPP"),            10, strIni);
-	m_rawSettings.nCaptureFormat = ::GetPrivateProfileInt(sec, _T("CaptureFormat"),   0, strIni);
 	m_rawSettings.nColorOrder    = ::GetPrivateProfileInt(sec, _T("ColorOrder"),      0, strIni);
 }
 
@@ -102,18 +104,17 @@ void CMy01ViewerDlg::SaveRawSettings()
 	CString v;
 	v.Format(_T("%d"), m_rawSettings.nWidth);         ::WritePrivateProfileString(sec, _T("Width"),         v, strIni);
 	v.Format(_T("%d"), m_rawSettings.nHeight);        ::WritePrivateProfileString(sec, _T("Height"),        v, strIni);
-	v.Format(_T("%d"), m_rawSettings.nBpp);           ::WritePrivateProfileString(sec, _T("BPP"),           v, strIni);
-	v.Format(_T("%d"), m_rawSettings.nCaptureFormat); ::WritePrivateProfileString(sec, _T("CaptureFormat"), v, strIni);
 	v.Format(_T("%d"), m_rawSettings.nColorOrder);    ::WritePrivateProfileString(sec, _T("ColorOrder"),    v, strIni);
 }
 
 void CMy01ViewerDlg::CreateRawSettingsUI()
 {
 	const int x0 = margin_cx + view_cx + 5;
-	const int y0 = caption_cy + 2 + 24 + 10;   // Load/Save 버튼 아래
-	const int labelW = 90, editW = 90, rowH = 22, gap = 4;
+	const int y0 = caption_cy + 2 + 80 + 10;   // Load/Save 버튼 아래
+	// 크기 1.5배 확대 (labelW 90→135, editW 90→135, rowH 22→33, gap 4→6)
+	const int labelW = 135, editW = 135, rowH = 33, gap = 6;
 
-	CRect rcGroup(x0, y0, x0 + labelW + editW + 10, y0 + rowH * 6 + 30);
+	CRect rcGroup(x0, y0, x0 + labelW + editW + 15, y0 + rowH * 6 + 63);
 	m_stRawGroup.Create(_T("RAW Image Settings"), WS_CHILD | WS_VISIBLE | SS_ETCHEDFRAME, rcGroup, this, IDC_STATIC_RAW_GROUP);
 
 	int y = y0 + 10;
@@ -130,31 +131,10 @@ void CMy01ViewerDlg::CreateRawSettingsUI()
 		CRect(x0 + 6 + labelW, y, x0 + 6 + labelW + editW, y + rowH), this, IDC_EDIT_RAW_HEIGHT);
 	y += rowH + gap;
 
-	// BPP
-	m_stRawBpp.Create(_T("BPP:"), WS_CHILD | WS_VISIBLE | SS_LEFT, CRect(x0 + 6, y + 3, x0 + 6 + labelW, y + rowH), this, IDC_STATIC_RAW_BPP);
-	m_edRawBpp.Create(WS_CHILD | WS_VISIBLE | WS_BORDER | WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL,
-		CRect(x0 + 6 + labelW, y, x0 + 6 + labelW + editW, y + rowH), this, IDC_EDIT_RAW_BPP);
-	y += rowH + gap;
-
-	// CaptureFormat
-	m_stRawCapFmt.Create(_T("CaptureFormat:"), WS_CHILD | WS_VISIBLE | SS_LEFT, CRect(x0 + 6, y + 3, x0 + 6 + labelW, y + rowH), this, IDC_STATIC_RAW_CAPFMT);
-	m_cmbRawCapFmt.Create(WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST,
-		CRect(x0 + 6 + labelW, y, x0 + 6 + labelW + editW, y + rowH + 100), this, IDC_CMB_RAW_CAPFMT);
-	m_cmbRawCapFmt.AddString(_T("Gray"));
-	m_cmbRawCapFmt.AddString(_T("Bayer"));
-	m_cmbRawCapFmt.AddString(_T("RGB"));
-	m_cmbRawCapFmt.AddString(_T("YUV"));
-	y += rowH + gap;
-
 	// ColorOrder
 	m_stRawColorOrder.Create(_T("ColorOrder:"), WS_CHILD | WS_VISIBLE | SS_LEFT, CRect(x0 + 6, y + 3, x0 + 6 + labelW, y + rowH), this, IDC_STATIC_RAW_COLORORDER);
 	m_cmbRawColorOrder.Create(WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_VSCROLL | CBS_DROPDOWNLIST,
 		CRect(x0 + 6 + labelW, y, x0 + 6 + labelW + editW, y + rowH + 100), this, IDC_CMB_RAW_COLORORDER);
-	m_cmbRawColorOrder.AddString(_T("None"));
-	m_cmbRawColorOrder.AddString(_T("RGGB"));
-	m_cmbRawColorOrder.AddString(_T("BGGR"));
-	m_cmbRawColorOrder.AddString(_T("GRBG"));
-	m_cmbRawColorOrder.AddString(_T("GBRG"));
 	m_cmbRawColorOrder.AddString(_T("RGB"));
 	m_cmbRawColorOrder.AddString(_T("BGR"));
 	y += rowH + gap;
@@ -167,8 +147,6 @@ void CMy01ViewerDlg::CreateRawSettingsUI()
 	CFont* pFont = GetFont();
 	m_stRawWidth.SetFont(pFont);       m_edRawWidth.SetFont(pFont);
 	m_stRawHeight.SetFont(pFont);      m_edRawHeight.SetFont(pFont);
-	m_stRawBpp.SetFont(pFont);         m_edRawBpp.SetFont(pFont);
-	m_stRawCapFmt.SetFont(pFont);      m_cmbRawCapFmt.SetFont(pFont);
 	m_stRawColorOrder.SetFont(pFont);  m_cmbRawColorOrder.SetFont(pFont);
 	m_btnRawApply.SetFont(pFont);
 	m_stRawGroup.SetFont(pFont);
@@ -179,8 +157,6 @@ void CMy01ViewerDlg::UpdateUIFromSettings()
 	CString v;
 	v.Format(_T("%d"), m_rawSettings.nWidth);  m_edRawWidth.SetWindowText(v);
 	v.Format(_T("%d"), m_rawSettings.nHeight); m_edRawHeight.SetWindowText(v);
-	v.Format(_T("%d"), m_rawSettings.nBpp);    m_edRawBpp.SetWindowText(v);
-	m_cmbRawCapFmt.SetCurSel(m_rawSettings.nCaptureFormat);
 	m_cmbRawColorOrder.SetCurSel(m_rawSettings.nColorOrder);
 }
 
@@ -189,19 +165,16 @@ bool CMy01ViewerDlg::UpdateSettingsFromUI()
 	CString sW, sH, sB;
 	m_edRawWidth.GetWindowText(sW);
 	m_edRawHeight.GetWindowText(sH);
-	m_edRawBpp.GetWindowText(sB);
 
-	int w = _ttoi(sW), h = _ttoi(sH), b = _ttoi(sB);
-	if (w <= 0 || h <= 0 || b <= 0 || b > 32)
+	int w = _ttoi(sW), h = _ttoi(sH);
+	if (w <= 0 || h <= 0)
 	{
-		AfxMessageBox(_T("Width/Height/BPP 값이 올바르지 않습니다."), MB_ICONWARNING);
+		AfxMessageBox(_T("Width/Height 값이 올바르지 않습니다."), MB_ICONWARNING);
 		return false;
 	}
 
 	m_rawSettings.nWidth         = w;
 	m_rawSettings.nHeight        = h;
-	m_rawSettings.nBpp           = b;
-	m_rawSettings.nCaptureFormat = m_cmbRawCapFmt.GetCurSel();
 	m_rawSettings.nColorOrder    = m_cmbRawColorOrder.GetCurSel();
 	return true;
 }
@@ -222,9 +195,7 @@ bool CMy01ViewerDlg::LoadRawFile(LPCTSTR szPath, cv::Mat& matOut)
 
 	const int w = m_rawSettings.nWidth;
 	const int h = m_rawSettings.nHeight;
-	const int bpp = m_rawSettings.nBpp;
-	const int bytesPerPx = (bpp <= 8) ? 1 : 2;
-	const size_t total = (size_t)w * h * bytesPerPx;
+	const size_t total = (size_t)w * h;
 
 	if ((ULONGLONG)file.GetLength() < total)
 	{
@@ -237,39 +208,10 @@ bool CMy01ViewerDlg::LoadRawFile(LPCTSTR szPath, cv::Mat& matOut)
 	file.Read(buf.data(), (UINT)total);
 	file.Close();
 
-	const int type = (bytesPerPx == 1) ? CV_8UC1 : CV_16UC1;
+	const int type = CV_8UC1;
 	cv::Mat mat(h, w, type, buf.data());
 
-	// 8-bit 로 정규화
-	cv::Mat mat8;
-	if (bytesPerPx == 2)
-	{
-		double scale = 255.0 / ((1 << bpp) - 1);
-		mat.convertTo(mat8, CV_8UC1, scale);
-	}
-	else
-	{
-		mat8 = mat.clone();
-	}
-
-	// Bayer 디모자이크
-	if (m_rawSettings.nCaptureFormat == 1)
-	{
-		int code = cv::COLOR_BayerBG2BGR;
-		switch (m_rawSettings.nColorOrder)
-		{
-		case 1: code = cv::COLOR_BayerRG2BGR; break;  // RGGB
-		case 2: code = cv::COLOR_BayerBG2BGR; break;  // BGGR
-		case 3: code = cv::COLOR_BayerGR2BGR; break;  // GRBG
-		case 4: code = cv::COLOR_BayerGB2BGR; break;  // GBRG
-		default: code = cv::COLOR_BayerBG2BGR; break;
-		}
-		cv::cvtColor(mat8, matOut, code);
-	}
-	else
-	{
-		matOut = mat8.clone();
-	}
+	matOut = mat.clone();
 
 	return true;
 }
@@ -335,9 +277,23 @@ void CMy01ViewerDlg::OnDestroy()
 	delete m_WndImageView;
 }
 
+const cv::Mat& CMy01ViewerDlg::GetViewImage()
+{
+	if (eViewTarget::Origin == m_DlgVisionTest->GetViewTarget())
+	{
+		return m_matCopy;
+	}
+	else //(eViewTarget::Result == m_DlgVisionTest->GetViewTarget())
+	{
+		return m_matProcessed;
+	}
+}
+
 void CMy01ViewerDlg::OnBnClickedBtnSave()
 {
-	if (m_matCopy.empty())
+	const cv::Mat& refMat = GetViewImage();
+
+	if (refMat.empty())
 	{
 		AfxMessageBox(_T("먼저 이미지를 불러오세요."), MB_ICONWARNING);
 		return;
@@ -354,10 +310,18 @@ void CMy01ViewerDlg::OnBnClickedBtnSave()
 	CT2CA pszConvertedAnsiString(strPath);
 	std::string strPathStd(pszConvertedAnsiString);
 
-	if (cv::imwrite(strPathStd, m_matCopy))
+	if (cv::imwrite(strPathStd, refMat))
 		AfxMessageBox(_T("성공적으로 저장되었습니다."));
 	else
 		AfxMessageBox(_T("저장에 실패했습니다."));
+}
+
+void CMy01ViewerDlg::RefreshInpsectionDialogImage(size_t bytes)
+{
+	if (bytes != m_ProcessedImageSizeInBytes)
+	{
+		InitProcessedImage();
+	}
 }
 
 void CMy01ViewerDlg::OnBnClickedBtnLoad()
@@ -404,6 +368,14 @@ void CMy01ViewerDlg::OnBnClickedBtnLoad()
 	// 불러온 직후 사본 이미지 생성 (저장 시 사용)
 	m_matCopy = matLoaded.clone();
 
+	// 로드된 이미지 정보로 RAW 설정(m_rawSettings) 및 UI 갱신
+	m_rawSettings.nWidth  = matLoaded.cols;
+	m_rawSettings.nHeight = matLoaded.rows;
+	// ColorOrder: 채널 수에 따라 None(0)/RGB(1)/BGR(2) 추정 — OpenCV는 기본 BGR
+	if (matLoaded.channels() == 1)      m_rawSettings.nColorOrder = 0; // None
+	else if (matLoaded.channels() >= 3) m_rawSettings.nColorOrder = 2; // BGR
+	UpdateUIFromSettings();
+
 	// 1296*972 보다 큰 경우 이미지 크기 축소
 	if (matLoaded.cols > view_cx || matLoaded.rows > view_cy)
 	{
@@ -424,9 +396,94 @@ void CMy01ViewerDlg::OnBnClickedBtnLoad()
 
 	// CImageViewEx에 출력 (pitch 포함 bitmap array 사용)
 	WORD wBpp = (WORD)(matDisp.channels() * 8);
-	m_WndImageView->UpdateImageFromBitmapArray(
-		matDisp.data, matDisp.cols, (LONG)matDisp.step, matDisp.rows, wBpp, TRUE);
+	//m_WndImageView->UpdateImageFromBitmapArray(
+	//	matDisp.data, matDisp.cols, (LONG)matDisp.step, matDisp.rows, wBpp, TRUE);
+	m_WndImageView->UpdateImageFromArray(
+		matDisp.data, matDisp.cols, matDisp.rows, wBpp, FALSE);
 	m_WndImageView->InvalidateDirect(FALSE);
 
-	//m_imageInfo = m_WndImageView->GetOverlayBitmapImageInfo_Color();
+	// 자식 대화상자가 생성된 경우 RESULT를 위한 처리
+	if (m_DlgVisionTest)
+		RefreshInpsectionDialogImage(matLoaded.total());
+}
+
+void CMy01ViewerDlg::InitProcessedImage()
+{
+	m_matProcessed = m_matCopy.clone();
+	if (m_matProcessed.channels() == 3)
+		cv::cvtColor(m_matProcessed, m_matProcessed, cv::COLOR_BGR2GRAY);
+	//if (m_matCopy.channels() == 3)
+	//	cv::cvtColor(m_matCopy, m_matProcessed, cv::COLOR_RGB2GRAY);
+
+	m_ProcessedImageSizeInBytes = m_matProcessed.rows * m_matProcessed.cols * m_matProcessed.elemSize1();
+}
+
+void CMy01ViewerDlg::OnBnClickedBtnDlg()
+{
+	if (m_DlgVisionTest == nullptr)
+	{
+		// 자식 대화상자 메모리를 할당하고 모달리스(modeless)로 생성한다.
+		m_DlgVisionTest = new DlgVisionTest(this);
+		if (!m_DlgVisionTest->Create(IDD_DLG_VISION_TEST, this))
+		{
+			// 생성 실패 시 정리
+			delete m_DlgVisionTest;
+			m_DlgVisionTest = nullptr;
+			AfxMessageBox(_T("자식 대화상자를 생성할 수 없습니다."), MB_ICONERROR);
+			return;
+		}
+
+		// 자식 대화상자에서 사용할 RESULT 이미지를 초기화한다.
+		InitProcessedImage();
+
+		// 자식 대화상자가 m_matProcessed 에 직접 접근할 수 있도록 참조를 넘긴다.
+		m_DlgVisionTest->SetProcessedMatRef(&m_matProcessed);
+	}
+
+	// 이미 존재하거나 새로 생성된 경우 화면에 표시한다.
+	m_DlgVisionTest->ShowWindow(SW_SHOW);
+	m_DlgVisionTest->SetForegroundWindow();
+}
+
+void CMy01ViewerDlg::CleanUpInpsectionDialog()
+{
+	m_DlgVisionTest->DestroyWindow();
+	delete m_DlgVisionTest;
+	m_DlgVisionTest = nullptr;
+
+	// 자식 대화상자에 필요했던 이미지 버퍼를 해제한다.
+	delete[] m_ImageBuffer;
+	m_ImageBuffer = nullptr;
+}
+
+LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+	if (message == WM_CLOSE_VISION_TEST_DLG)
+	{
+		CleanUpInpsectionDialog();
+	}
+	else if (message == WM_UPDATE_VIEW)
+	{
+		// 자식 대화상자로부터 이미지 출력 요청 받음
+		if (static_cast<eViewTarget>(wParam) == eViewTarget::Origin)
+		{
+			// 원본(m_matCopy) 출력
+			WORD wBpp = (WORD)(m_matCopy.channels() * 8);
+			m_WndImageView->UpdateImageFromArray(
+				m_matCopy.data, m_matCopy.cols, m_matCopy.rows, wBpp, FALSE);
+		}
+		else
+		{
+			// 결과(m_matProcessed) 출력 — filter2D 결과 반영
+			if (!m_matProcessed.empty())
+			{
+				WORD wBpp = (WORD)(m_matProcessed.channels() * 8);
+				m_WndImageView->UpdateImageFromArray(
+					m_matProcessed.data, m_matProcessed.cols, m_matProcessed.rows, wBpp, FALSE);
+			}
+		}
+		m_WndImageView->InvalidateDirect(FALSE);
+	}
+
+	return CDialogEx::WindowProc(message, wParam, lParam);
 }

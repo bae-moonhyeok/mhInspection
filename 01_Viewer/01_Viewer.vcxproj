@@ -195,6 +195,7 @@
     <ClInclude Include="01_Viewer.h" />
     <ClInclude Include="01_ViewerDlg.h" />
     <ClInclude Include="Constants.h" />
+    <ClInclude Include="DlgVisionTest.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="LTUILIB\lib\lt_lib\include\lt\lt_type.h" />
     <ClInclude Include="LTUILIB\lib\lt_lib\include\lt\UIPackage\BCMenu.h" />
@@ -206,6 +207,7 @@
   <ItemGroup>
     <ClCompile Include="01_Viewer.cpp" />
     <ClCompile Include="01_ViewerDlg.cpp" />
+    <ClCompile Include="DlgVisionTest.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

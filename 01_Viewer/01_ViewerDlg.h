@@ -9,13 +9,13 @@
 #include "opencv2/imgproc.hpp"
 #include "opencv2/imgcodecs.hpp"
 
+#include "DlgVisionTest.h"
+
 struct RawImageSettings
 {
 	int nWidth = 1280;
 	int nHeight = 800;
-	int nBpp = 10;
-	int nCaptureFormat = 0;		// 0=Gray, 1=Bayer, 2=RGB, 3=YUV
-	int nColorOrder = 0;		// 0=None, 1=RGGB, 2=BGGR, 3=GRBG, 4=GBRG, 5=RGB, 6=BGR
+	int nColorOrder = 0;		// 0=None, 1=RGB, 2=BGR
 };
 
 // CMy01ViewerDlg 대화 상자
@@ -51,6 +51,8 @@ public:
 	afx_msg void OnBnClickedBtnSave();
 	afx_msg void OnBnClickedBtnLoad();
 	afx_msg void OnBnClickedBtnRawApply();
+	afx_msg void OnBnClickedBtnDlg();
+	virtual LRESULT WindowProc(UINT message, WPARAM wParam, LPARAM lParam);
 
 private:
 	lt::CImageViewEx* m_WndImageView = nullptr;
@@ -72,4 +74,15 @@ private:
 	void UpdateUIFromSettings();
 	bool UpdateSettingsFromUI();
 	bool LoadRawFile(LPCTSTR szPath, cv::Mat& matOut);
+
+	DlgVisionTest* m_DlgVisionTest = nullptr;
+	lt::IMAGE_INFO m_imageInfo;
+	BYTE* m_ImageBuffer = nullptr;
+	cv::Mat m_matProcessed;
+	size_t m_ProcessedImageSizeInBytes;
+
+	void CleanUpInpsectionDialog();
+	void RefreshInpsectionDialogImage(size_t bytes);
+	void InitProcessedImage();
+	const cv::Mat& GetViewImage();
 };
