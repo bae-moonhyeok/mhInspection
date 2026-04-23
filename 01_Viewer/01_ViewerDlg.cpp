@@ -279,14 +279,13 @@ void CMy01ViewerDlg::OnDestroy()
 
 const cv::Mat& CMy01ViewerDlg::GetViewImage()
 {
-	if (eViewTarget::Origin == m_DlgVisionTest->GetViewTarget())
-	{
-		return m_matCopy;
-	}
-	else //(eViewTarget::Result == m_DlgVisionTest->GetViewTarget())
+	// 자식 대화상자가 없으면 항상 원본(m_matCopy) 반환 — nullptr 역참조 방지
+	if (m_DlgVisionTest != nullptr &&
+		eViewTarget::Result == m_DlgVisionTest->GetViewTarget())
 	{
 		return m_matProcessed;
 	}
+	return m_matCopy;
 }
 
 void CMy01ViewerDlg::OnBnClickedBtnSave()
@@ -447,9 +446,13 @@ void CMy01ViewerDlg::OnBnClickedBtnDlg()
 
 void CMy01ViewerDlg::CleanUpInpsectionDialog()
 {
-	m_DlgVisionTest->DestroyWindow();
-	delete m_DlgVisionTest;
-	m_DlgVisionTest = nullptr;
+	// null 일 수 있는 경우에도 안전하게 정리한다.
+	if (m_DlgVisionTest != nullptr)
+	{
+		m_DlgVisionTest->DestroyWindow();
+		delete m_DlgVisionTest;
+		m_DlgVisionTest = nullptr;
+	}
 
 	// 자식 대화상자에 필요했던 이미지 버퍼를 해제한다.
 	delete[] m_ImageBuffer;
