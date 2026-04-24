@@ -141,11 +141,11 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, cons
 	// 전달된 이미지가 비어있는 경우 중단한다.
 	CV_Assert(!src.empty());
 
-	// 컨볼루션 연산 오류를 막기 위해 참조와 적용 대상을 구분한다.
-	dst = src.clone();
-
-	// 정밀도를 위해 커널의 자료형을 변환한다.
-	kernel.convertTo(kernel, CV_64F);
+	const int Height = src.rows;
+	const int Width = src.cols;
+#pragma region jhjeong
+	PBYTE image = (PBYTE)src.ptr(0);
+	PBYTE imageDst = (PBYTE)dst.ptr(0);
 
 	// 반복될 참조를 미리 구성하여 최적화 한다.
 	const double k[9] = {
@@ -154,27 +154,35 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, cons
 		kernel.at<double>(2,0),kernel.at<double>(2,1), kernel.at<double>(2,2)
 	};
 
-	const int Height = src.rows;
-	const int Width  = src.cols;
+	int nVal;
+	int pos;
 
-	for (int y = 0 + 1; y < Height - 1; y++)
+	for (int y = 1; y < Height - 1; y++)
 	{
-		const uchar* r0 = src.ptr<uchar>(y - 1);
-		const uchar* r1 = src.ptr<uchar>(y);
-		const uchar* r2 = src.ptr<uchar>(y + 1);
-		uchar* d        = dst.ptr<uchar>(y - 1);
-		for (int x = 0 + 1; x < Width - 1; x++) // TOBE: 
+		for (int x = 1; x < Width - 1; x++) // TOBE: 
 		{
-			const double sum =
-				r0[x] * k[0] + r0[x - 1] * k[1] + r0[x - 1] * k[2] +
-				r1[x] * k[3] + r1[x    ] * k[4] + r1[x    ] * k[5] +
-				r2[x] * k[6] + r2[x + 1] * k[7] + r2[x + 1] * k[8];
-			d[x] = cv::saturate_cast<uchar>(sum);
+			pos = (y)*Width + (x);
+			nVal = image[(y - 1) * Width + (x - 1)] * k[0];
+			nVal += image[(y - 1) * Width + (x)] * k[1];
+			nVal += image[(y - 1) * Width + (x + 1)] * k[2];
+			nVal += image[(pos - 1)] * k[3];
+			nVal += image[pos] * k[4];
+			nVal += image[(pos + 1)] * k[5];
+			nVal += image[(y + 1) * Width + (x - 1)] * k[6];
+			nVal += image[(y + 1) * Width + (x)] * k[7];
+			nVal += image[(y + 1) * Width + (x + 1)] * k[8];
+
+
+			if (nVal < 0)
+				nVal = 0;
+
+			if (nVal > 255)
+				nVal = 255;
+
+			imageDst[pos] = nVal;
 		}
 	}
-
-	// 연산 결과를 반영한다.
-	dst.copyTo(src);
+#pragma endregion jhjeong
 }
 
 void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel)
