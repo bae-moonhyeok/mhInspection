@@ -30,6 +30,7 @@ void CMy01ViewerDlg::DoDataExchange(CDataExchange* pDX)
 
 	DDX_Control(pDX, IDC_STATIC_VIEW, *m_WndImageView);
 	DDX_Control(pDX, IDC_LIST_LOG, m_listLog);
+	//DDX_Control(pDX, IDC_CHECK_KEEP_IMAGE, m_chkKeepImage);
 }
 
 BEGIN_MESSAGE_MAP(CMy01ViewerDlg, CDialogEx)
@@ -65,11 +66,26 @@ void CMy01ViewerDlg::UserInit()
 	pWnd = GetDlgItem(IDC_LIST_LOG);
 	pWnd->SetWindowPos(NULL, monitor_cx - margin_cx - 560 - 14, -taskbar_cy + monitor_cy - margin_cy - 360, 560, 80, SWP_NONE);
 
+	// IDC_CHECK_KEEP_IMAGE: 자식 대화상자 이미지 자동 정리를 억제할지 여부
+	// 위치는 IDC_BTN_DLG 버튼 바로 위. 기본값은 해제(unchecked).
+	pWnd = GetDlgItem(IDC_CHECK_KEEP_IMAGE);
+	if (pWnd != nullptr)
+	{
+		pWnd->SetWindowPos(NULL,
+			monitor_cx - margin_cx - 120 - 14,
+			-taskbar_cy + monitor_cy - margin_cy - 120 - 30,
+			120, 24, SWP_NONE);
+		pWnd->SetWindowText(_T("Keep Image"));
+		m_chkKeepImage.SetCheck(BST_UNCHECKED);
+	}
+
 	m_WndImageView->SetMinimumZoomRatio(100);
 
 	LoadRawSettings();
 	CreateRawSettingsUI();
 	UpdateUIFromSettings();
+
+	AddLog(_T("Viewer ready."));
 }
 
 CString CMy01ViewerDlg::GetSettingsFilePath() const
@@ -188,6 +204,11 @@ void CMy01ViewerDlg::OnBnClickedBtnRawApply()
 	if (!UpdateSettingsFromUI()) return;
 	SaveRawSettings();
 	AfxMessageBox(_T("설정이 저장되었습니다."));
+
+	CString log;
+	log.Format(_T("[RAW] Settings saved (W=%d, H=%d, ColorOrder=%d)"),
+		m_rawSettings.nWidth, m_rawSettings.nHeight, m_rawSettings.nColorOrder);
+	AddLog(log);
 }
 
 bool CMy01ViewerDlg::LoadRawFile(LPCTSTR szPath, cv::Mat& matOut)
@@ -314,9 +335,17 @@ void CMy01ViewerDlg::OnBnClickedBtnSave()
 	std::string strPathStd(pszConvertedAnsiString);
 
 	if (cv::imwrite(strPathStd, refMat))
+	{
 		AfxMessageBox(_T("성공적으로 저장되었습니다."));
+		CString log;
+		log.Format(_T("[Save] %s"), (LPCTSTR)strPath);
+		AddLog(log);
+	}
 	else
+	{
 		AfxMessageBox(_T("저장에 실패했습니다."));
+		AddLog(_T("[Save] Failed."));
+	}
 }
 
 void CMy01ViewerDlg::RefreshInpsectionDialogImage(size_t bytes)
@@ -365,7 +394,27 @@ void CMy01ViewerDlg::OnBnClickedBtnLoad()
 	if (matLoaded.empty())
 	{
 		AfxMessageBox(_T("이미지를 로드하는 데 실패했습니다."), MB_ICONERROR);
+		AddLog(_T("[Load] Failed."));
 		return;
+	}
+
+	// --------------------------------------------------------------
+	// 자식 대화상자 이미지 정리 — KEEP_IMAGE 해제 상태일 때만 BTN_LOAD 시점에 수행.
+	//   체크 상태이면 기존 처리 이미지(m_matProcessed)를 유지한다.
+	// --------------------------------------------------------------
+	if (!IsKeepImage())
+	{
+		// 새 이미지로 교체되므로 기존 ImageBuffer 와 processed 를 비운다.
+		delete[] m_ImageBuffer;
+		m_ImageBuffer = nullptr;
+
+		m_matProcessed.release();
+		m_ProcessedImageSizeInBytes = 0;
+		AddLog(_T("[Load] KEEP_IMAGE=OFF → processed image cleared"));
+	}
+	else
+	{
+		AddLog(_T("[Load] KEEP_IMAGE=ON → processed image preserved"));
 	}
 
 	// 불러온 직후 사본 이미지 생성 (저장 시 사용)
@@ -382,9 +431,9 @@ void CMy01ViewerDlg::OnBnClickedBtnLoad()
 	// 1296*972 보다 큰 경우 이미지 크기 축소
 	if (matLoaded.cols > view_cx || matLoaded.rows > view_cy)
 	{
-		double r = std::min((double)view_cx / matLoaded.cols, (double)view_cy / matLoaded.rows);
+		double ratio = std::min((double)view_cx / matLoaded.cols, (double)view_cy / matLoaded.rows);
 		cv::Mat matResized;
-		cv::resize(matLoaded, matResized, cv::Size(), r, r, cv::INTER_AREA);
+		cv::resize(matLoaded, matResized, cv::Size(), ratio, ratio, cv::INTER_AREA);
 		matLoaded = matResized;
 	}
 
@@ -408,6 +457,12 @@ void CMy01ViewerDlg::OnBnClickedBtnLoad()
 	// 자식 대화상자가 생성된 경우 RESULT를 위한 처리
 	if (m_DlgVisionTest)
 		RefreshInpsectionDialogImage(matLoaded.total());
+
+	// 로그: 파일 경로 + 해상도
+	CString log;
+	log.Format(_T("[Load] %s (%dx%d, ch=%d)"),
+		(LPCTSTR)strFilePath, matLoaded.cols, matLoaded.rows, matLoaded.channels());
+	AddLog(log);
 }
 
 void CMy01ViewerDlg::InitProcessedImage()
@@ -446,11 +501,29 @@ void CMy01ViewerDlg::OnBnClickedBtnDlg()
 	// 이미 존재하거나 새로 생성된 경우 화면에 표시한다.
 	m_DlgVisionTest->ShowWindow(SW_SHOW);
 	m_DlgVisionTest->SetForegroundWindow();
+
+	AddLog(_T("[Child] Vision test dialog opened"));
+}
+
+bool CMy01ViewerDlg::IsKeepImage() const
+{
+	// 체크박스 윈도우가 아직 생성되지 않았다면(초기화 전/리소스 누락) 기본값 false.
+	if (m_chkKeepImage.GetSafeHwnd() == NULL) return false;
+	return m_chkKeepImage.GetCheck() == BST_CHECKED;
 }
 
 void CMy01ViewerDlg::CleanUpInpsectionDialog()
 {
-	// null 일 수 있는 경우에도 안전하게 정리한다.
+	// --------------------------------------------------------------
+	// 자식 대화상자 종료 경로
+	// --------------------------------------------------------------
+	//  - KEEP_IMAGE 체크 상태와 무관하게, 여기서는 '다이얼로그 윈도우' 만 파괴한다.
+	//  - 처리 이미지(m_matProcessed, m_ImageBuffer)는 보존한다.
+	//    (이전 정책: 종료 시 항상 정리 → 현재 정책: 종료 시 정리하지 않음)
+	//  - 이미지 정리는 OnBnClickedBtnLoad() 시점에서 KEEP_IMAGE 해제 상태일 때만 수행.
+	// --------------------------------------------------------------
+	const bool bKeep = IsKeepImage();
+
 	if (m_DlgVisionTest != nullptr)
 	{
 		m_DlgVisionTest->DestroyWindow();
@@ -458,9 +531,13 @@ void CMy01ViewerDlg::CleanUpInpsectionDialog()
 		m_DlgVisionTest = nullptr;
 	}
 
-	// 자식 대화상자에 필요했던 이미지 버퍼를 해제한다.
-	delete[] m_ImageBuffer;
-	m_ImageBuffer = nullptr;
+	if (!bKeep)
+	{
+		// 보존 플래그가 꺼져있고, 자식 대화상자가 실제 정리 대상이었다면
+		// 참조용 이미지 버퍼만 해제한다. (cv::Mat 자체는 다음 Load 때까지 보존)
+		delete[] m_ImageBuffer;
+		m_ImageBuffer = nullptr;
+	}
 
 	// 자식 대화상자 종료 후 메인 뷰(IDC_STATIC_VIEW)를 원본 이미지로 갱신한다.
 	// — 직전에 Result 로 출력 중이던 내용을 초기화하고 Origin 상태로 복귀.
@@ -471,7 +548,33 @@ void CMy01ViewerDlg::CleanUpInpsectionDialog()
 			m_matCopy.data, m_matCopy.cols, m_matCopy.rows, wBpp, FALSE);
 		m_WndImageView->InvalidateDirect(FALSE);
 	}
+
+	AddLog(bKeep
+		? _T("[Child] Closed (KEEP_IMAGE=ON, processed kept)")
+		: _T("[Child] Closed (KEEP_IMAGE=OFF)"));
 }
+
+// ======================================================================
+// [설계 전용] IDC_BTN_CLONE_ORIGIN — 자식 대화상자 이미지 사본(m_matProcessed)
+// 을 원본(m_matCopy) 으로부터 다시 클론하여 덮어쓰는 리셋 기능.
+// 구현은 아직 없으며 아래 절차만 주석으로 남긴다 (요구사항: "설계하여 주석만 남길 것").
+// ----------------------------------------------------------------------
+// 설계 요약:
+//   1) 전제: m_matCopy 가 비어있지 않을 것 (원본이 로드된 상태)
+//   2) InitProcessedImage() 재호출 → m_matProcessed = m_matCopy.clone() + gray 변환
+//   3) 자식 대화상자가 존재한다면 SetProcessedMatRef(&m_matProcessed) 재바인딩
+//      (새 Mat 인스턴스로 교체되어 기존 포인터가 가리키는 데이터가 달라질 수 있으므로 재설정)
+//   4) 현재 자식의 ViewTarget 이 Result 이면 즉시 재출력(WM_UPDATE_VIEW)
+//   5) AddLog(_T("[Clone] m_matProcessed ← m_matCopy"))
+//
+// 동작 정책:
+//   - IDC_CHECK_KEEP_IMAGE 상태와 무관하게 사용자가 명시적으로 요청한 시점이므로 항상 수행.
+//   - 누적된 컨볼루션 결과가 폐기되므로, 필요 시 확인 다이얼로그(MessageBox Yes/No) 고려.
+//
+// 구현 예정 시그니처:
+//   afx_msg void OnBnClickedBtnCloneOrigin();
+//   ON_BN_CLICKED(IDC_BTN_CLONE_ORIGIN, &CMy01ViewerDlg::OnBnClickedBtnCloneOrigin)
+// ======================================================================
 
 LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -479,6 +582,13 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		CleanUpInpsectionDialog();
 		AddLog(TEXT("자식 대화 상자가 종료되었습니다."));
+	}
+	else if (message == WM_APPEND_LOG)
+	{
+		// 자식 대화상자(DlgVisionTest) 가 보낸 로그 요청.
+		// LPARAM 은 LPCTSTR 문자열 포인터 — SendMessage 동기 경로라 포인터 유효성 보장.
+		LPCTSTR sz = reinterpret_cast<LPCTSTR>(lParam);
+		if (sz != nullptr) AddLog(sz);
 	}
 	else if (message == WM_UPDATE_VIEW)
 	{

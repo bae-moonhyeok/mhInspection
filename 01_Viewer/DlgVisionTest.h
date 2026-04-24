@@ -6,6 +6,9 @@
 
 #define WM_CLOSE_VISION_TEST_DLG	(WM_USER + 100)
 #define WM_UPDATE_VIEW				(WM_USER + 101)
+// 부모 대화상자의 IDC_LIST_LOG 에 로그를 추가하도록 요청한다.
+// LPARAM: LPCTSTR 문자열 포인터(호출자가 수명 보장) — SendMessage 로 동기 처리.
+#define WM_APPEND_LOG				(WM_USER + 102)
 
 struct SImageProcess
 {
@@ -49,6 +52,8 @@ public:
 	afx_msg void OnBnClickedBtnClose();
 	afx_msg void OnBnClickedBtnImageProcess();
 	afx_msg void OnBnClickedRadioStatus(UINT ctrl_id);
+	afx_msg void OnBnClickedBtnKernelSave();
+	afx_msg void OnBnClickedBtnKernelLoad();
 	virtual BOOL OnInitDialog();
 	afx_msg void OnDestroy();
 
@@ -61,12 +66,15 @@ private:
 	// 현재 UI 에 입력된 값으로부터 3x3 커널 Mat 를 구성한다.
 	cv::Mat BuildKernelFromUI() const;
 	// 3x3 커널을 통해 컨볼루션 연산을 수행한다.
+	void mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, const cv::Mat kernel);
 	void ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel);
 
-	// 커널 설정 파일 입출력 (exe 폴더의 viewer.ini, [Kernel] 섹션)
+	// 커널 설정 파일 입출력
+	// - 인자 생략(기본) 시 exe 폴더의 viewer.ini, [Kernel] 섹션을 사용한다.
+	// - 인자로 전체 경로를 주면 해당 파일을 사용한다(CFileDialog 로 선택한 경로).
 	CString GetKernelSettingsPath() const;
-	void LoadKernelSettings();
-	void SaveKernelSettings();
+	void LoadKernelSettings(LPCTSTR szPath = nullptr);
+	void SaveKernelSettings(LPCTSTR szPath = nullptr);
 
 public:
 	void InitProcessedImage(const BYTE* pSrc, int width, int height, int channel);
@@ -90,5 +98,16 @@ private:
 	// 커널 입력용 9개 EditBox (행 우선: [0..2]=1행, [3..5]=2행, [6..8]=3행)
 	CEdit m_edKernel[9];
 
-	// TODO: 부모 대화상자 IDC_LIST_LOG 로깅 위한 작업
+	// 커널 Save / Load 버튼 — CreateKernelUI() 에서 3x3 그리드 하단에 동적 생성
+	CButton m_btnKernelSave;
+	CButton m_btnKernelLoad;
+
+	// ------------------------------------------------------------------
+	// 부모 대화상자(IDC_LIST_LOG) 로깅 인터페이스
+	// ------------------------------------------------------------------
+	// 자식에서는 부모의 내부 구현을 알 필요가 없도록 WM_APPEND_LOG 메시지로
+	// 전달한다. 문자열은 SendMessage 동기 호출 동안 유효해야 한다.
+public:
+	void LogToParent(LPCTSTR szMsg);
+	afx_msg void OnBnClickedCheckKeepImage();
 };

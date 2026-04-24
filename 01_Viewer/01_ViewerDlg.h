@@ -86,10 +86,15 @@ private:
 	void InitProcessedImage();
 	const cv::Mat& GetViewImage();
 
+	// IDC_CHECK_KEEP_IMAGE: 체크 상태이면 자식 대화상자 종료/로드 시 처리 이미지 자동 정리를 건너뛴다.
+	CButton m_chkKeepImage;
+	bool IsKeepImage() const;
+
 	CListBox m_listLog;
 	CString m_strTime;
 
+	// 자식 대화상자로부터 요청된 IDC_LIST_LOG 로깅은 WindowProc(WM_APPEND_LOG) 에서
+	// AddLog() 로 포워딩한다. 외부(자식)에서 호출 가능하도록 public 에 그대로 둔다.
+public:
 	void AddLog(const wchar_t* str);
-
-	// TODO: 자식 대화상자로부터 요청된 IDC_LIST_LOG 로깅 위한 작업
 };

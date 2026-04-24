@@ -29,6 +29,9 @@
 #define IDC_CHECK_KEEP_IMAGE            1036
 #define IDC_LIST1                       1037
 #define IDC_LIST_LOG                    1037
+#define IDC_BTN_CLONE_ORIGIN            1043
+#define IDC_BTN_KERNEL_SAVE             1050
+#define IDC_BTN_KERNEL_LOAD             1051
 
 // Next default values for new objects
 // 
@@ -36,7 +39,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        132
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1038
+#define _APS_NEXT_CONTROL_VALUE         1052
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

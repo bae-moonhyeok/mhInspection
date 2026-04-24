@@ -16,8 +16,8 @@
 // 아래 4개 매크로 중 정확히 하나만 활성화하여 해당 구현만 컴파일한다.
 // 나머지는 주석 처리 + #ifdef/#endif 가드로 비활성 상태를 유지한다.
 // ==========================================================================
-#define KERNEL_IMPL_CV_MAT              // [1] cv::Mat::at<T>() 기반 (OpenCV 이디엄)
-//#define KERNEL_IMPL_CV_INPUT_ARRAY      // [2] cv::InputArray + Mat::ptr<T>() 기반
+//#define KERNEL_IMPL_CV_MAT              // [1] cv::Mat::at<T>() 기반 (OpenCV 이디엄)
+#define KERNEL_IMPL_CV_INPUT_ARRAY      // [2] cv::InputArray + Mat::ptr<T>() 기반
 //#define KERNEL_IMPL_UCHAR               // [3] uchar* 원시 포인터 기반 (저수준)
 //#define KERNEL_IMPL_UINT                // [4] UINT 누산기 기반 (정수 고정소수점)
 
@@ -46,14 +46,17 @@ BEGIN_MESSAGE_MAP(DlgVisionTest, CDialogEx)
 	ON_BN_CLICKED(IDCANCEL, &DlgVisionTest::OnBnClickedCancel)
 	ON_BN_CLICKED(IDC_BTN_CLOSE, &DlgVisionTest::OnBnClickedBtnClose)
 	ON_BN_CLICKED(IDC_BTN_IMAGE_PROCESS, &DlgVisionTest::OnBnClickedBtnImageProcess)
+	ON_BN_CLICKED(IDC_BTN_KERNEL_SAVE, &DlgVisionTest::OnBnClickedBtnKernelSave)
+	ON_BN_CLICKED(IDC_BTN_KERNEL_LOAD, &DlgVisionTest::OnBnClickedBtnKernelLoad)
 	ON_COMMAND_RANGE(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, &DlgVisionTest::OnBnClickedRadioStatus)
 	ON_WM_DESTROY()
+	ON_BN_CLICKED(IDC_CHECK_KEEP_IMAGE, &DlgVisionTest::OnBnClickedCheckKeepImage)
 END_MESSAGE_MAP()
 
 // DlgVisionTest 메시지 처리기
 
 void DlgVisionTest::OnBnClickedOk() { /*CDialogEx::OnOK();*/ }
-void DlgVisionTest::OnBnClickedCancel() { CDialogEx::OnCancel(); }
+void DlgVisionTest::OnBnClickedCancel() { /*CDialogEx::OnCancel();*/ GetParent()->SendMessage(WM_CLOSE_VISION_TEST_DLG); }
 
 void DlgVisionTest::OnBnClickedBtnClose()
 {
@@ -80,7 +83,7 @@ cv::Mat DlgVisionTest::BuildKernelFromUI() const
 }
 
 // ======================================================================
-// [1] cv::Mat 기반 구현 — cv::Mat::at<T>() 접근 방식 (OpenCV 이디엄)
+// [1] cv::Mat 기반 구현 — cv::Mat::at<T>() 접근 방식 (OpenCV idiom)
 // ======================================================================
 #ifdef KERNEL_IMPL_CV_MAT
 void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel)
@@ -130,6 +133,50 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 // [2] cv::InputArray + Mat::ptr<T>() 기반 구현 — 행 포인터로 빠르게 접근
 // ======================================================================
 #ifdef KERNEL_IMPL_CV_INPUT_ARRAY
+
+void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, const cv::Mat kernel)
+{
+	// 커널 크기가 유효하지 않는 경우 중단한다.
+	CV_Assert(kernel.rows == 3 && kernel.cols == 3);
+	// 전달된 이미지가 비어있는 경우 중단한다.
+	CV_Assert(!src.empty());
+
+	// 컨볼루션 연산 오류를 막기 위해 참조와 적용 대상을 구분한다.
+	dst = src.clone();
+
+	// 정밀도를 위해 커널의 자료형을 변환한다.
+	kernel.convertTo(kernel, CV_64F);
+
+	// 반복될 참조를 미리 구성하여 최적화 한다.
+	const double k[9] = {
+		kernel.at<double>(0,0),kernel.at<double>(0,1), kernel.at<double>(0,2),
+		kernel.at<double>(1,0),kernel.at<double>(1,1), kernel.at<double>(1,2),
+		kernel.at<double>(2,0),kernel.at<double>(2,1), kernel.at<double>(2,2)
+	};
+
+	const int Height = src.rows;
+	const int Width  = src.cols;
+
+	for (int y = 0 + 1; y < Height - 1; y++)
+	{
+		const uchar* r0 = src.ptr<uchar>(y - 1);
+		const uchar* r1 = src.ptr<uchar>(y);
+		const uchar* r2 = src.ptr<uchar>(y + 1);
+		uchar* d        = dst.ptr<uchar>(y - 1);
+		for (int x = 0 + 1; x < Width - 1; x++) // TOBE: 
+		{
+			const double sum =
+				r0[x] * k[0] + r0[x - 1] * k[1] + r0[x - 1] * k[2] +
+				r1[x] * k[3] + r1[x    ] * k[4] + r1[x    ] * k[5] +
+				r2[x] * k[6] + r2[x + 1] * k[7] + r2[x + 1] * k[8];
+			d[x] = cv::saturate_cast<uchar>(sum);
+		}
+	}
+
+	// 연산 결과를 반영한다.
+	dst.copyTo(src);
+}
+
 void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel)
 {
 	// InputArray 로 추상화된 입력을 getMat() 로 바인딩하여 ptr<>() 로 순회한다.
@@ -317,8 +364,11 @@ void DlgVisionTest::OnBnClickedBtnImageProcess()
 	SaveKernelSettings();
 
 	cv::Mat dst;
-	// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
-	ApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
+	//// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
+	//ApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
+	// 수정한 3x3 컨볼루션 함수 적용.
+	dst = m_refMatProcessed->clone();
+	mhApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
 
 	*m_refMatProcessed = dst;
 
@@ -326,6 +376,17 @@ void DlgVisionTest::OnBnClickedBtnImageProcess()
 	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, IDC_RADIO_RESULT);
 	m_ViewTarget = eViewTarget::Result;
 	UpdateViewer();
+
+	// 부모 로그: 적용된 커널 요약 (9개 계수)
+	CString log, tmp;
+	log = _T("[Process] Conv3x3 applied: [");
+	for (int i = 0; i < 9; ++i)
+	{
+		tmp.Format(_T("%g%s"), kernel.at<double>(i / 3, i % 3), i < 8 ? _T(",") : _T(""));
+		log += tmp;
+	}
+	log += _T("]");
+	LogToParent(log);
 }
 
 void DlgVisionTest::UpdateViewer()
@@ -394,6 +455,27 @@ void DlgVisionTest::CreateKernelUI()
 		m_edKernel[i].SetFont(pFont);
 	}
 
+	// --------------------------------------------------------------
+	// 3x3 그리드 바로 아래에 커널 Save / Load 버튼을 배치한다.
+	// (CFileDialog 로 사용자가 지정한 .ini 파일에 커널을 저장/복원)
+	// --------------------------------------------------------------
+	const int btnW = (gridW - gap) / 2;   // 버튼 2개가 그리드 폭을 정확히 메우도록
+	const int btnH = 28;
+	const int btnY = y0 + gridH + 10;
+
+	CRect rcSave(x0,              btnY, x0 + btnW,          btnY + btnH);
+	CRect rcLoad(x0 + btnW + gap, btnY, x0 + gridW,         btnY + btnH);
+
+	m_btnKernelSave.Create(_T("Save Kernel..."),
+		WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+		rcSave, this, IDC_BTN_KERNEL_SAVE);
+	m_btnKernelSave.SetFont(pFont);
+
+	m_btnKernelLoad.Create(_T("Load Kernel..."),
+		WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
+		rcLoad, this, IDC_BTN_KERNEL_LOAD);
+	m_btnKernelLoad.SetFont(pFont);
+
 	// EditBox 생성 후, 저장된 커널 값을 파일에서 읽어 복원한다.
 	// (파일이 없거나 항목이 비어있으면 항등 커널이 기본값으로 채워진다.)
 	LoadKernelSettings();
@@ -414,10 +496,13 @@ CString DlgVisionTest::GetKernelSettingsPath() const
 	return strPath;
 }
 
-void DlgVisionTest::LoadKernelSettings()
+void DlgVisionTest::LoadKernelSettings(LPCTSTR szPath /*=nullptr*/)
 {
-	CString strIni = GetKernelSettingsPath();
-	LPCTSTR sec    = _T("Kernel");
+	// szPath 가 없으면 기본 경로(viewer.ini), 있으면 사용자가 선택한 경로를 사용.
+	CString strIni = (szPath != nullptr && *szPath)
+		? CString(szPath)
+		: GetKernelSettingsPath();
+	LPCTSTR sec = _T("Kernel");
 
 	// 기본값: 항등(identity) 커널 — 원본 그대로 통과
 	const double defaults[9] = {
@@ -436,7 +521,7 @@ void DlgVisionTest::LoadKernelSettings()
 			if (m_edKernel[i].GetSafeHwnd() != NULL)
 				m_edKernel[i].SetWindowText(s);
 		}
-		SaveKernelSettings();
+		SaveKernelSettings(szPath);
 		return;
 	}
 
@@ -460,10 +545,12 @@ void DlgVisionTest::LoadKernelSettings()
 	}
 }
 
-void DlgVisionTest::SaveKernelSettings()
+void DlgVisionTest::SaveKernelSettings(LPCTSTR szPath /*=nullptr*/)
 {
-	CString strIni = GetKernelSettingsPath();
-	LPCTSTR sec    = _T("Kernel");
+	CString strIni = (szPath != nullptr && *szPath)
+		? CString(szPath)
+		: GetKernelSettingsPath();
+	LPCTSTR sec = _T("Kernel");
 
 	// 현재 EditBox 에 입력된 문자열을 그대로 K0..K8 키로 저장한다.
 	for (int i = 0; i < 9; ++i)
@@ -478,6 +565,70 @@ void DlgVisionTest::SaveKernelSettings()
 
 		::WritePrivateProfileString(sec, key, val, strIni);
 	}
+}
+
+// ======================================================================
+// 커널 Save 버튼 — CFileDialog 로 경로를 받아 해당 .ini 에 커널을 저장
+// ======================================================================
+void DlgVisionTest::OnBnClickedBtnKernelSave()
+{
+	TCHAR szFilter[] = _T("Kernel INI (*.ini)|*.ini|모든 파일(*.*)|*.*||");
+	// 기본 파일명: kernel_yyyymmdd_HHMMSS.ini
+	CTime t = CTime::GetCurrentTime();
+	CString strDefault = t.Format(_T("kernel_%Y%m%d_%H%M%S"));
+
+	CFileDialog dlg(FALSE, _T("ini"), strDefault,
+		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT, szFilter, this);
+
+	if (dlg.DoModal() != IDOK)
+		return;
+
+	CString strPath = dlg.GetPathName();
+	SaveKernelSettings(strPath);
+
+	CString log;
+	log.Format(_T("[Kernel] Saved → %s"), (LPCTSTR)strPath);
+	LogToParent(log);
+}
+
+// ======================================================================
+// 커널 Load 버튼 — CFileDialog 로 .ini 를 선택하여 현재 UI 에 반영
+// ======================================================================
+void DlgVisionTest::OnBnClickedBtnKernelLoad()
+{
+	TCHAR szFilter[] = _T("Kernel INI (*.ini)|*.ini|모든 파일(*.*)|*.*||");
+	CFileDialog dlg(TRUE, _T("ini"), NULL,
+		OFN_FILEMUSTEXIST | OFN_HIDEREADONLY, szFilter, this);
+
+	if (dlg.DoModal() != IDOK)
+		return;
+
+	CString strPath = dlg.GetPathName();
+	if (::GetFileAttributes(strPath) == INVALID_FILE_ATTRIBUTES)
+	{
+		AfxMessageBox(_T("선택한 파일이 존재하지 않습니다."), MB_ICONERROR);
+		return;
+	}
+
+	LoadKernelSettings(strPath);
+
+	CString log;
+	log.Format(_T("[Kernel] Loaded ← %s"), (LPCTSTR)strPath);
+	LogToParent(log);
+}
+
+// ======================================================================
+// 부모 대화상자(IDC_LIST_LOG) 로 로그 전달
+// ======================================================================
+void DlgVisionTest::LogToParent(LPCTSTR szMsg)
+{
+	if (szMsg == nullptr) return;
+	CWnd* pParent = GetParent();
+	if (pParent == nullptr || !::IsWindow(pParent->GetSafeHwnd())) return;
+
+	// SendMessage 는 동기 호출이므로 szMsg 수명은 핸들러가 복사 완료할 때까지만
+	// 유지되면 된다 — 대부분의 호출 지점에서 로컬 CString 으로 충분하다.
+	pParent->SendMessage(WM_APPEND_LOG, 0, reinterpret_cast<LPARAM>(szMsg));
 }
 
 void DlgVisionTest::OnDestroy()
@@ -498,6 +649,11 @@ void DlgVisionTest::CleanProcessedImage()
 }
 
 void DlgVisionTest::ResetProcessedImage(const BYTE* pSrc, int width, int height, int channels)
+{
+
+}
+
+void DlgVisionTest::OnBnClickedCheckKeepImage()
 {
 
 }
