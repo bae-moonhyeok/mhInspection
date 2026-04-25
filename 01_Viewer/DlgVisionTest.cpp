@@ -182,28 +182,33 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	const int Height = src.rows;
 	const int Width  = src.cols;
 
-	for (int y = 0 + 1; y < Height - 1; y++) // NOTE: 코드 스타일 적용 `uchar` -> `BYTE`
+	int nVal;
+	int pos;
+
+	PBYTE image = (PBYTE)src.ptr();
+	PBYTE imageDst = (PBYTE)dst.ptr();
+
+	for (int y = 0 + 1; y < Height - 1; y++) // TOBE: Border
 	{
-		const BYTE* r0 = src.ptr<BYTE>(y - 1);
-		const BYTE* r1 = src.ptr<BYTE>(y);
-		const BYTE* r2 = src.ptr<BYTE>(y + 1);
-		BYTE* d        = dst.ptr<BYTE>(y - 1);
 		for (int x = 0 + 1; x < Width - 1; x++)
 		{
-			const double sum =
-				r0[x] * k[0] + r0[x - 1] * k[1] + r0[x - 1] * k[2] +
-				r1[x] * k[3] + r1[x    ] * k[4] + r1[x    ] * k[5] +
-				r2[x] * k[6] + r2[x + 1] * k[7] + r2[x + 1] * k[8];
-			
-			// d[x] = cv::saturate_cast<BYTE>(sum);
-			// d[x] = std::clamp(d[x], 0, 255);
-			// NOTE: OpenCV 와 C++17 제거
-			d[x] = sum;
-			if (d[x] < 0)
-				d[x] = 0;
-			if (d[x] > 255)
-				d[x] = 255;
-			
+			pos = y * Width + x;
+			nVal  = image[(y - 1) * Width + (x - 1)] * k[0];
+			nVal += image[(y - 1) * Width + (x + 0)] * k[1];
+			nVal += image[(y - 1) * Width + (x + 1)] * k[2];
+			nVal += image[(y + 0) * Width + (x - 1)] * k[3];
+			nVal += image[(y + 0) * Width + (x + 0)] * k[4];
+			nVal += image[(y + 0) * Width + (x + 1)] * k[5];
+			nVal += image[(y + 1) * Width + (x - 1)] * k[6];
+			nVal += image[(y + 1) * Width + (x + 0)] * k[7];
+			nVal += image[(y + 1) * Width + (x - 1)] * k[8];
+
+			if (nVal < 0)
+				nVal = 0;
+			if (nVal > 255)
+				nVal = 255;
+
+			imageDst[pos] = nVal;
 		}
 	}
 
