@@ -192,20 +192,25 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	PBYTE image = (PBYTE)src.ptr();
 	PBYTE imageDst = (PBYTE)dst.ptr();
 
+	const int nOffsetImage[] = { -Width - 1, -Width + 0, -Width + 1,
+                                         -1,        + 0,         +1,
+								 +Width - 1, -Width + 0, +Width + 1,
+	};
+
 	for (int y = 0 + 1; y < Height - 1; y++) // TOBE: Border
 	{
 		for (int x = 0 + 1; x < Width - 1; x++)
 		{
 			pos = y * Width + x;
-			nVal  = image[pos - Width - 1] * k[0];
-			nVal += image[pos - Width + 0] * k[1];
-			nVal += image[pos - Width + 1] * k[2];
-			nVal += image[pos +     0 - 1] * k[3];
-			nVal += image[pos +     0 + 0] * k[4];
-			nVal += image[pos +     0 + 1] * k[5];
-			nVal += image[pos + Width - 1] * k[6];
-			nVal += image[pos + Width + 0] * k[7];
-			nVal += image[pos + Width - 1] * k[8];
+			nVal  = image[pos + nOffsetImage[0]] * k[0];
+			nVal += image[pos + nOffsetImage[1]] * k[1];
+			nVal += image[pos + nOffsetImage[2]] * k[2];
+			nVal += image[pos + nOffsetImage[3]] * k[3];
+			nVal += image[pos + nOffsetImage[4]] * k[4];
+			nVal += image[pos + nOffsetImage[5]] * k[5];
+			nVal += image[pos + nOffsetImage[6]] * k[6];
+			nVal += image[pos + nOffsetImage[7]] * k[7];
+			nVal += image[pos + nOffsetImage[8]] * k[8];
 
 			if (nVal < 0)
 				nVal = 0;
