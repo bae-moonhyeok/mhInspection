@@ -54,6 +54,7 @@ public:
 	afx_msg void OnBnClickedRadioStatus(UINT ctrl_id);
 	afx_msg void OnBnClickedBtnKernelSave();
 	afx_msg void OnBnClickedBtnKernelLoad();
+	afx_msg void OnBnClickedRadioConv(UINT ctrl_id);   // IDC_RADIO_CONV / _MH / _MHADDR
 	virtual BOOL OnInitDialog();
 	afx_msg void OnDestroy();
 
@@ -66,6 +67,7 @@ private:
 	// 현재 UI 에 입력된 값으로부터 3x3 커널 Mat 를 구성한다.
 	cv::Mat BuildKernelFromUI() const;
 	// 3x3 커널을 통해 컨볼루션 연산을 수행한다.
+	void mhAddrApplyConvolution3x3(const cv::Mat& src, const cv::Mat kernel);
 	void mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kernel);
 	void ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel);
 
@@ -101,6 +103,12 @@ private:
 	// 커널 Save / Load 버튼 — CreateKernelUI() 에서 3x3 그리드 하단에 동적 생성
 	CButton m_btnKernelSave;
 	CButton m_btnKernelLoad;
+
+	// 측정 대상 컨볼루션 함수 선택 — OnBnClickedBtnImageProcess() 에서 분기.
+	//   0: ApplyConvolution3x3       (IDC_RADIO_CONV)
+	//   1: mhApplyConvolution3x3     (IDC_RADIO_CONV_MH)
+	//   2: mhAddrApplyConvolution3x3 (IDC_RADIO_CONV_MHADDR)
+	int m_ConvMethod = 0;
 
 	// ------------------------------------------------------------------
 	// 부모 대화상자(IDC_LIST_LOG) 로깅 인터페이스

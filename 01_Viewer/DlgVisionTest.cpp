@@ -10,6 +10,26 @@
 
 #include "resource.h"
 
+#include <chrono>     // 컨볼루션 소요시간 측정 (ms 정밀도)
+
+// ==========================================================================
+// mhAddrApplyConvolution3x3 SIMD 가속 옵션
+// --------------------------------------------------------------------------
+// 정확히 하나만 활성화하거나, 모두 비활성화하여 단일 while-loop 스칼라 구현을 사용한다.
+// 각 매크로에 대응하는 컴파일러 옵션도 함께 설정해야 빌드된다.
+//   AVX2   → /arch:AVX2
+//   AVX512 → /arch:AVX512  (AVX-512F Foundation 명령만 사용)
+//   SSE42  → x64 빌드는 기본 SSE2; SSE4.1 명령(/arch:SSE2 이상)이 필요
+// ==========================================================================
+//#define MHADDR_USE_SSE42       // [A] SSE4.2 (16 px / iter)
+//#define MHADDR_USE_AVX2        // [B] AVX2   (16 px / iter, 256-bit reg)
+//#define MHADDR_USE_AVX512      // [C] AVX-512 Foundation (16 px / iter, 512-bit reg)
+                                 // (모두 비활성 → 단일 while-loop 스칼라)
+
+#if defined(MHADDR_USE_SSE42) || defined(MHADDR_USE_AVX2) || defined(MHADDR_USE_AVX512)
+  #include <immintrin.h>
+#endif
+
 // ==========================================================================
 // 3x3 커널 관련(IDC_STATIC_KERNER3X3) 구현 방식 선택
 // --------------------------------------------------------------------------
@@ -49,6 +69,7 @@ BEGIN_MESSAGE_MAP(DlgVisionTest, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_KERNEL_SAVE, &DlgVisionTest::OnBnClickedBtnKernelSave)
 	ON_BN_CLICKED(IDC_BTN_KERNEL_LOAD, &DlgVisionTest::OnBnClickedBtnKernelLoad)
 	ON_COMMAND_RANGE(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, &DlgVisionTest::OnBnClickedRadioStatus)
+	ON_COMMAND_RANGE(IDC_RADIO_CONV, IDC_RADIO_CONV_MHADDR, &DlgVisionTest::OnBnClickedRadioConv)
 	ON_WM_DESTROY()
 	ON_BN_CLICKED(IDC_CHECK_KEEP_IMAGE, &DlgVisionTest::OnBnClickedCheckKeepImage)
 END_MESSAGE_MAP()
@@ -144,6 +165,321 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 // ======================================================================
 #ifdef KERNEL_IMPL_CV_INPUT_ARRAY
 
+void DlgVisionTest::mhAddrApplyConvolution3x3(const cv::Mat& src, const cv::Mat kernel)
+{
+	// ------------------------------------------------------------------
+	// displacement(증분) 어드레싱 기반 3x3 컨볼루션.
+	// 동일 함수 안에서 4가지 구현을 #ifdef 로 선택:
+	//   [기본]  단일 while 루프 + 9-step diff 포인터 (스칼라)
+	//   [A]     SSE4.2  — 16 픽셀/iter
+	//   [B]     AVX2    — 16 픽셀/iter, 256-bit
+	//   [C]     AVX-512 Foundation — 16 픽셀/iter, 512-bit
+	// ------------------------------------------------------------------
+	CV_Assert(kernel.rows == 3 && kernel.cols == 3);
+	CV_Assert(!src.empty() && src.type() == CV_8UC1);
+	CV_Assert(src.isContinuous() && kernel.isContinuous());
+
+	cv::Mat dst = src.clone();   // 테두리 1px 보존
+	// BORDER_REPLICATE 경계 확장
+	cv::Mat matdst = src.clone();
+	cv::copyMakeBorder(src, matdst, 1, 1, 1, 1, cv::BORDER_REPLICATE);
+	const int Height = src.rows;
+	const int Width  = src.cols;
+
+	PBYTE image       = (PBYTE)src.ptr();
+	PBYTE imageDst    = (PBYTE)matdst.ptr();
+	PCHAR pKernelBase = (PCHAR)kernel.ptr();
+
+#if defined(MHADDR_USE_AVX512)
+	// ==================================================================
+	// [C] AVX-512 Foundation — 16 픽셀/iter (epi32 누산)
+	// ==================================================================
+	// 커널 계수를 32-bit 정수로 broadcast (AVX-512F: epi32 only).
+	const __m512i kv0 = _mm512_set1_epi32(pKernelBase[0]);
+	const __m512i kv1 = _mm512_set1_epi32(pKernelBase[1]);
+	const __m512i kv2 = _mm512_set1_epi32(pKernelBase[2]);
+	const __m512i kv3 = _mm512_set1_epi32(pKernelBase[3]);
+	const __m512i kv4 = _mm512_set1_epi32(pKernelBase[4]);
+	const __m512i kv5 = _mm512_set1_epi32(pKernelBase[5]);
+	const __m512i kv6 = _mm512_set1_epi32(pKernelBase[6]);
+	const __m512i kv7 = _mm512_set1_epi32(pKernelBase[7]);
+	const __m512i kv8 = _mm512_set1_epi32(pKernelBase[8]);
+	const __m512i v_max  = _mm512_set1_epi32(255);
+	const __m512i v_zero = _mm512_setzero_si512();
+
+	for (int y = 1; y < Height - 1; ++y)
+	{
+		const unsigned char* r0 = image + (y - 1) * Width;
+		const unsigned char* r1 = image + (y    ) * Width;
+		const unsigned char* r2 = image + (y + 1) * Width;
+		unsigned char*       rd = imageDst + y * Width;
+
+		int x = 1;
+		for (; x + 15 < Width - 1; x += 16)
+		{
+			// 각 행 별로 좌/중/우 16바이트 → 16 × i32 (epu8→epi32) → mullo + add
+			#define MHADDR_LOAD3_512(rowPtr, KL, KC, KR, ACC)                                     \
+				do {                                                                              \
+					__m128i vL8 = _mm_loadu_si128((const __m128i*)((rowPtr) + x - 1));             \
+					__m128i vC8 = _mm_loadu_si128((const __m128i*)((rowPtr) + x    ));             \
+					__m128i vR8 = _mm_loadu_si128((const __m128i*)((rowPtr) + x + 1));             \
+					__m512i vL  = _mm512_cvtepu8_epi32(vL8);                                       \
+					__m512i vC  = _mm512_cvtepu8_epi32(vC8);                                       \
+					__m512i vR  = _mm512_cvtepu8_epi32(vR8);                                       \
+					ACC = _mm512_add_epi32(ACC, _mm512_mullo_epi32(vL, KL));                       \
+					ACC = _mm512_add_epi32(ACC, _mm512_mullo_epi32(vC, KC));                       \
+					ACC = _mm512_add_epi32(ACC, _mm512_mullo_epi32(vR, KR));                       \
+				} while (0)
+
+			__m512i acc = v_zero;
+			MHADDR_LOAD3_512(r0, kv0, kv1, kv2, acc);
+			MHADDR_LOAD3_512(r1, kv3, kv4, kv5, acc);
+			MHADDR_LOAD3_512(r2, kv6, kv7, kv8, acc);
+			#undef MHADDR_LOAD3_512
+
+			// 클램핑 [0, 255]
+			acc = _mm512_max_epi32(acc, v_zero);
+			acc = _mm512_min_epi32(acc, v_max);
+
+			// 16 × i32 → 16 × u8 (truncation; 클램핑 후이므로 안전)
+			_mm_storeu_si128((__m128i*)(rd + x), _mm512_cvtepi32_epi8(acc));
+		}
+		// 잔여 — 스칼라
+		for (; x < Width - 1; ++x)
+		{
+			int v = r0[x-1]*pKernelBase[0] + r0[x]*pKernelBase[1] + r0[x+1]*pKernelBase[2]
+				  + r1[x-1]*pKernelBase[3] + r1[x]*pKernelBase[4] + r1[x+1]*pKernelBase[5]
+				  + r2[x-1]*pKernelBase[6] + r2[x]*pKernelBase[7] + r2[x+1]*pKernelBase[8];
+			if (v < 0) v = 0; else if (v > 255) v = 255;
+			rd[x] = static_cast<BYTE>(v);
+		}
+	}
+
+#elif defined(MHADDR_USE_AVX2)
+	// ==================================================================
+	// [B] AVX2 — 16 픽셀/iter (epi16 mul + epi32 누산)
+	// ==================================================================
+	const __m256i kv0 = _mm256_set1_epi16((short)pKernelBase[0]);
+	const __m256i kv1 = _mm256_set1_epi16((short)pKernelBase[1]);
+	const __m256i kv2 = _mm256_set1_epi16((short)pKernelBase[2]);
+	const __m256i kv3 = _mm256_set1_epi16((short)pKernelBase[3]);
+	const __m256i kv4 = _mm256_set1_epi16((short)pKernelBase[4]);
+	const __m256i kv5 = _mm256_set1_epi16((short)pKernelBase[5]);
+	const __m256i kv6 = _mm256_set1_epi16((short)pKernelBase[6]);
+	const __m256i kv7 = _mm256_set1_epi16((short)pKernelBase[7]);
+	const __m256i kv8 = _mm256_set1_epi16((short)pKernelBase[8]);
+
+	for (int y = 1; y < Height - 1; ++y)
+	{
+		const unsigned char* r0 = image + (y - 1) * Width;
+		const unsigned char* r1 = image + (y    ) * Width;
+		const unsigned char* r2 = image + (y + 1) * Width;
+		unsigned char*       rd = imageDst + y * Width;
+
+		int x = 1;
+		for (; x + 15 < Width - 1; x += 16)
+		{
+			// epi32 누산기 2개 (16 픽셀 = 8 + 8 lane)
+			__m256i acc_lo = _mm256_setzero_si256();
+			__m256i acc_hi = _mm256_setzero_si256();
+
+			#define MHADDR_LOAD3_256(rowPtr, KL, KC, KR)                                  \
+				do {                                                                       \
+					__m128i vL8 = _mm_loadu_si128((const __m128i*)((rowPtr) + x - 1));     \
+					__m128i vC8 = _mm_loadu_si128((const __m128i*)((rowPtr) + x    ));     \
+					__m128i vR8 = _mm_loadu_si128((const __m128i*)((rowPtr) + x + 1));     \
+					__m256i vL16 = _mm256_cvtepu8_epi16(vL8);                              \
+					__m256i vC16 = _mm256_cvtepu8_epi16(vC8);                              \
+					__m256i vR16 = _mm256_cvtepu8_epi16(vR8);                              \
+					/* 각 곱셈을 epi32 로 확장 후 누산 (epi16 add 오버플로우 방지) */         \
+					__m256i pL = _mm256_mullo_epi16(vL16, KL);                             \
+					__m256i pC = _mm256_mullo_epi16(vC16, KC);                             \
+					__m256i pR = _mm256_mullo_epi16(vR16, KR);                             \
+					acc_lo = _mm256_add_epi32(acc_lo, _mm256_cvtepi16_epi32(_mm256_castsi256_si128(pL))); \
+					acc_hi = _mm256_add_epi32(acc_hi, _mm256_cvtepi16_epi32(_mm256_extracti128_si256(pL,1))); \
+					acc_lo = _mm256_add_epi32(acc_lo, _mm256_cvtepi16_epi32(_mm256_castsi256_si128(pC))); \
+					acc_hi = _mm256_add_epi32(acc_hi, _mm256_cvtepi16_epi32(_mm256_extracti128_si256(pC,1))); \
+					acc_lo = _mm256_add_epi32(acc_lo, _mm256_cvtepi16_epi32(_mm256_castsi256_si128(pR))); \
+					acc_hi = _mm256_add_epi32(acc_hi, _mm256_cvtepi16_epi32(_mm256_extracti128_si256(pR,1))); \
+				} while (0)
+
+			MHADDR_LOAD3_256(r0, kv0, kv1, kv2);
+			MHADDR_LOAD3_256(r1, kv3, kv4, kv5);
+			MHADDR_LOAD3_256(r2, kv6, kv7, kv8);
+			#undef MHADDR_LOAD3_256
+
+			// epi32 → epi16(saturate) → epi8(saturate, unsigned)
+			__m256i pack16 = _mm256_packs_epi32(acc_lo, acc_hi);
+			// _mm256_packs_epi32 은 128-bit lane 별로 동작하므로 lane 재배치 필요
+			pack16 = _mm256_permute4x64_epi64(pack16, 0xD8);  // 11 01 10 00
+			__m128i pack8 = _mm_packus_epi16(_mm256_castsi256_si128(pack16),
+											 _mm256_extracti128_si256(pack16, 1));
+			_mm_storeu_si128((__m128i*)(rd + x), pack8);
+		}
+		// 잔여 — 스칼라
+		for (; x < Width - 1; ++x)
+		{
+			int v = r0[x-1]*pKernelBase[0] + r0[x]*pKernelBase[1] + r0[x+1]*pKernelBase[2]
+				  + r1[x-1]*pKernelBase[3] + r1[x]*pKernelBase[4] + r1[x+1]*pKernelBase[5]
+				  + r2[x-1]*pKernelBase[6] + r2[x]*pKernelBase[7] + r2[x+1]*pKernelBase[8];
+			if (v < 0) v = 0; else if (v > 255) v = 255;
+			rd[x] = static_cast<BYTE>(v);
+		}
+	}
+
+#elif defined(MHADDR_USE_SSE42)
+	// ==================================================================
+	// [A] SSE4.2 — 16 픽셀/iter (epi16 mul + epi32 누산, 4x i32 누산기)
+	// ==================================================================
+	const __m128i kv0 = _mm_set1_epi16((short)pKernelBase[0]);
+	const __m128i kv1 = _mm_set1_epi16((short)pKernelBase[1]);
+	const __m128i kv2 = _mm_set1_epi16((short)pKernelBase[2]);
+	const __m128i kv3 = _mm_set1_epi16((short)pKernelBase[3]);
+	const __m128i kv4 = _mm_set1_epi16((short)pKernelBase[4]);
+	const __m128i kv5 = _mm_set1_epi16((short)pKernelBase[5]);
+	const __m128i kv6 = _mm_set1_epi16((short)pKernelBase[6]);
+	const __m128i kv7 = _mm_set1_epi16((short)pKernelBase[7]);
+	const __m128i kv8 = _mm_set1_epi16((short)pKernelBase[8]);
+	const __m128i zero = _mm_setzero_si128();
+
+	for (int y = 1; y < Height - 1; ++y)
+	{
+		const unsigned char* r0 = image + (y - 1) * Width;
+		const unsigned char* r1 = image + (y    ) * Width;
+		const unsigned char* r2 = image + (y + 1) * Width;
+		unsigned char*       rd = imageDst + y * Width;
+
+		int x = 1;
+		for (; x + 15 < Width - 1; x += 16)
+		{
+			// 16 픽셀 × 4-lane epi32 누산기
+			__m128i acc0 = zero, acc1 = zero, acc2 = zero, acc3 = zero;
+
+			#define MHADDR_ACC_PROD(prod16)                                                       \
+				do {                                                                              \
+					/* 8 × i16 → 4 + 4 × i32 (sign-extend), 누산 */                                \
+					acc0 = _mm_add_epi32(acc0, _mm_cvtepi16_epi32(prod16));                        \
+					acc1 = _mm_add_epi32(acc1, _mm_cvtepi16_epi32(_mm_srli_si128(prod16, 8)));     \
+				} while (0)
+
+			#define MHADDR_LOAD3_128(rowPtr, KL, KC, KR)                                          \
+				do {                                                                              \
+					__m128i vL = _mm_loadu_si128((const __m128i*)((rowPtr) + x - 1));              \
+					__m128i vC = _mm_loadu_si128((const __m128i*)((rowPtr) + x    ));              \
+					__m128i vR = _mm_loadu_si128((const __m128i*)((rowPtr) + x + 1));              \
+					__m128i vL_lo = _mm_unpacklo_epi8(vL, zero);                                   \
+					__m128i vL_hi = _mm_unpackhi_epi8(vL, zero);                                   \
+					__m128i vC_lo = _mm_unpacklo_epi8(vC, zero);                                   \
+					__m128i vC_hi = _mm_unpackhi_epi8(vC, zero);                                   \
+					__m128i vR_lo = _mm_unpacklo_epi8(vR, zero);                                   \
+					__m128i vR_hi = _mm_unpackhi_epi8(vR, zero);                                   \
+					/* 픽셀 0..7 (lo): 곱셈 후 i32 로 확장 누산 */                                  \
+					__m128i pL_lo = _mm_mullo_epi16(vL_lo, KL);                                    \
+					__m128i pC_lo = _mm_mullo_epi16(vC_lo, KC);                                    \
+					__m128i pR_lo = _mm_mullo_epi16(vR_lo, KR);                                    \
+					acc0 = _mm_add_epi32(acc0, _mm_cvtepi16_epi32(pL_lo));                         \
+					acc1 = _mm_add_epi32(acc1, _mm_cvtepi16_epi32(_mm_srli_si128(pL_lo, 8)));      \
+					acc0 = _mm_add_epi32(acc0, _mm_cvtepi16_epi32(pC_lo));                         \
+					acc1 = _mm_add_epi32(acc1, _mm_cvtepi16_epi32(_mm_srli_si128(pC_lo, 8)));      \
+					acc0 = _mm_add_epi32(acc0, _mm_cvtepi16_epi32(pR_lo));                         \
+					acc1 = _mm_add_epi32(acc1, _mm_cvtepi16_epi32(_mm_srli_si128(pR_lo, 8)));      \
+					/* 픽셀 8..15 (hi) */                                                          \
+					__m128i pL_hi = _mm_mullo_epi16(vL_hi, KL);                                    \
+					__m128i pC_hi = _mm_mullo_epi16(vC_hi, KC);                                    \
+					__m128i pR_hi = _mm_mullo_epi16(vR_hi, KR);                                    \
+					acc2 = _mm_add_epi32(acc2, _mm_cvtepi16_epi32(pL_hi));                         \
+					acc3 = _mm_add_epi32(acc3, _mm_cvtepi16_epi32(_mm_srli_si128(pL_hi, 8)));      \
+					acc2 = _mm_add_epi32(acc2, _mm_cvtepi16_epi32(pC_hi));                         \
+					acc3 = _mm_add_epi32(acc3, _mm_cvtepi16_epi32(_mm_srli_si128(pC_hi, 8)));      \
+					acc2 = _mm_add_epi32(acc2, _mm_cvtepi16_epi32(pR_hi));                         \
+					acc3 = _mm_add_epi32(acc3, _mm_cvtepi16_epi32(_mm_srli_si128(pR_hi, 8)));      \
+				} while (0)
+
+			MHADDR_LOAD3_128(r0, kv0, kv1, kv2);
+			MHADDR_LOAD3_128(r1, kv3, kv4, kv5);
+			MHADDR_LOAD3_128(r2, kv6, kv7, kv8);
+			#undef MHADDR_LOAD3_128
+			#undef MHADDR_ACC_PROD
+
+			// pack: i32 → i16(saturate) → u8(saturate)
+			__m128i lo16 = _mm_packs_epi32(acc0, acc1);
+			__m128i hi16 = _mm_packs_epi32(acc2, acc3);
+			__m128i out8 = _mm_packus_epi16(lo16, hi16);
+			_mm_storeu_si128((__m128i*)(rd + x), out8);
+		}
+		// 잔여 — 스칼라
+		for (; x < Width - 1; ++x)
+		{
+			int v = r0[x-1]*pKernelBase[0] + r0[x]*pKernelBase[1] + r0[x+1]*pKernelBase[2]
+				  + r1[x-1]*pKernelBase[3] + r1[x]*pKernelBase[4] + r1[x+1]*pKernelBase[5]
+				  + r2[x-1]*pKernelBase[6] + r2[x]*pKernelBase[7] + r2[x+1]*pKernelBase[8];
+			if (v < 0) v = 0; else if (v > 255) v = 255;
+			rd[x] = static_cast<BYTE>(v);
+		}
+	}
+
+#else
+	// ==================================================================
+	// [기본] 단일 while 루프 — displacement(증분) 어드레싱
+	// ------------------------------------------------------------------
+	// 기존 2중 for 루프를 하나의 while 로 평탄화.
+	//   - 행 끝(우측 경계) 도달 시 +2 점프하여 다음 행 (1, y+1) 으로 이동
+	//   - 9-step 후 pImage 가 (curr+1, curr+1) 이므로 -Width 로 center 복귀
+	// ==================================================================
+	const int nOffsetDiff[] = { -Width - 1, 1, 1,
+								+Width - 2, 1, 1,
+								+Width - 2, 1, 1, };
+
+	int                  nVal;
+	const int*           pOffsetDiff;
+	const char*          pKernel;
+
+	const unsigned char* pImage       = image    + Width + 1;                    // (1, 1)
+	unsigned char*       pImageDst    = imageDst + Width + 1;
+	const unsigned char* pImageEnd    = image    + (Height - 1) * Width;          // 마지막 행 시작 (배타)
+	const unsigned char* pImageRowEnd = pImage   + (Width - 2);                   // 현 행의 우측 경계 주소
+
+	while (pImage < pImageEnd)
+	{
+		//// 행 끝 도달 → 다음 행 시작으로 점프 (현재행 우측 1 + 다음행 좌측 1 = 2 byte)
+		//if (pImage >= pImageRowEnd)
+		//{
+		//	pImage       += 2;
+		//	pImageDst    += 2;
+		//	pImageRowEnd += Width;
+		//	continue;
+		//}
+
+		pOffsetDiff = nOffsetDiff;
+		pKernel     = pKernelBase;
+
+		// 9 step 누산 — 첫 step 만 '=' , 이후는 '+='
+		pImage += *pOffsetDiff++;  nVal  = *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
+
+		// 9 step 끝나면 pImage 는 (curr+1, curr+1) → 다음 center (curr+1, curr) 로 -Width
+		pImage -= Width;
+
+		if (nVal < 0)        nVal = 0;
+		else if (nVal > 255) nVal = 255;
+		*pImageDst = static_cast<BYTE>(nVal);
+
+		++pImage;
+		++pImageDst;
+	}
+#endif
+
+	// in-place 결과 반영 — cv::Mat 의 const 는 헤더에만 적용되며 데이터는 mutable.
+	matdst.copyTo(src);
+}
+
 void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kernel)
 {
 	// 커널 크기가 유효하지 않는 경우 중단한다.
@@ -189,28 +525,33 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	// 이미지와 커널의 메모리가 연속되지 않은 경우 중단한다.
 	CV_Assert(src.isContinuous() && kernel.isContinuous());
 
-	PBYTE image = (PBYTE)src.ptr();
-	PBYTE imageDst = (PBYTE)dst.ptr();
+	PBYTE image        = (PBYTE)src.ptr();
+	PBYTE imageDst     = (PBYTE)dst.ptr();
+	PCHAR pKernelBase  = (PCHAR)kernel.ptr();
 
 	const int nOffsetImage[] = { -Width - 1, -Width + 0, -Width + 1,
                                          -1,        + 0,         +1,
-								 +Width - 1, -Width + 0, +Width + 1,
+								 +Width - 1, +Width + 0, +Width + 1,
 	};
 
+	const int*  pOffsetImage;
+	const char* pKernel;
 	for (int y = 0 + 1; y < Height - 1; y++) // TOBE: Border
 	{
 		for (int x = 0 + 1; x < Width - 1; x++)
 		{
+			pOffsetImage = nOffsetImage;
+			pKernel = pKernelBase;
 			pos = y * Width + x;
-			nVal  = image[pos + nOffsetImage[0]] * k[0];
-			nVal += image[pos + nOffsetImage[1]] * k[1];
-			nVal += image[pos + nOffsetImage[2]] * k[2];
-			nVal += image[pos + nOffsetImage[3]] * k[3];
-			nVal += image[pos + nOffsetImage[4]] * k[4];
-			nVal += image[pos + nOffsetImage[5]] * k[5];
-			nVal += image[pos + nOffsetImage[6]] * k[6];
-			nVal += image[pos + nOffsetImage[7]] * k[7];
-			nVal += image[pos + nOffsetImage[8]] * k[8];
+			nVal  = image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
 
 			if (nVal < 0)
 				nVal = 0;
@@ -231,45 +572,85 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 
 void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel)
 {
-	// InputArray 로 추상화된 입력을 getMat() 로 바인딩하여 ptr<>() 로 순회한다.
+	// ------------------------------------------------------------------
+	// mhApplyConvolution3x3 의 포인터 + 8-이웃 오프셋 테이블 패턴을 InputArray
+	// 시그니처에 맞춰 재구현.
+	//   - 픽셀 접근: 행 베이스(rowBase) + 9개 상대 오프셋(nOffsetImage)
+	//   - 누산:     int 누산기로 오버플로우 방지
+	//   - 클램핑:   if-else 로 0..255 직접 클램프
+	//   - 경계:     y=1..Height-2, x=1..Width-2 (테두리 1px 은 원본 복사)
+	// ------------------------------------------------------------------
 	cv::Mat matSrc = src.getMat();
 	cv::Mat matK   = kernel.getMat();
+
 	CV_Assert(matK.rows == 3 && matK.cols == 3);
 	CV_Assert(!matSrc.empty() && matSrc.type() == CV_8UC1);
+	CV_Assert(matSrc.isContinuous());
 
-	cv::Mat matKd;
-	matK.convertTo(matKd, CV_64F);
-
-	// 9개 커널 계수를 스택에 펼쳐 핫 루프 최적화
-	const double k[9] = {
-		matKd.at<double>(0,0), matKd.at<double>(0,1), matKd.at<double>(0,2),
-		matKd.at<double>(1,0), matKd.at<double>(1,1), matKd.at<double>(1,2),
-		matKd.at<double>(2,0), matKd.at<double>(2,1), matKd.at<double>(2,2)
-	};
+	// BuildKernelFromUI 의 PRECISION_DOUBLE 매크로에 따라 kernel 의 자료형이
+	// CV_8S / CV_64F 둘 중 하나로 들어온다. 둘 다 정수(CV_32S)로 통일하여 처리.
+	cv::Mat matKi;
+	matK.convertTo(matKi, CV_32S);
+	CV_Assert(matKi.isContinuous());
 
 	const int Height = matSrc.rows;
 	const int Width  = matSrc.cols;
 
-	cv::Mat matPad;
-	cv::copyMakeBorder(matSrc, matPad, 1, 1, 1, 1, cv::BORDER_REPLICATE);
-
+	// 결과 Mat 준비 — 테두리 1px 은 원본을 그대로 복사하여 검은 띠를 방지.
 	dst.create(Height, Width, matSrc.type());
 	cv::Mat matDst = dst.getMat();
+	matSrc.copyTo(matDst);
+	CV_Assert(matDst.isContinuous());
 
-	for (int y = 0; y < Height; ++y)
+	// ---------------- 핫 루프용 포인터/오프셋 (참조 베이스) ----------------
+	const BYTE* imageSrc    = matSrc.ptr<BYTE>();      // 읽기 전용 원본
+	BYTE*       imageDst    = matDst.ptr<BYTE>();      // 쓰기 전용 결과
+	const int*  pKernelBase = matKi.ptr<int>();        // CV_32S, 9개 계수 (행 우선)
+
+	// 9개 상대 오프셋: (-1,-1) (-1,0) (-1,+1)  (0,-1) (0,0) (0,+1)  (+1,-1) (+1,0) (+1,+1)
+	// (참조 코드의 +Width 행 가운데 항목 오타(-Width)를 +Width 로 정정)
+	const int nOffsetImage[9] = {
+		-Width - 1, -Width + 0, -Width + 1,
+				-1,         +0,         +1,
+		+Width - 1, +Width + 0, +Width + 1,
+	};
+
+	// 9개 커널 계수도 스택에 펼쳐 inner-loop 의 메모리 접근 최소화.
+	const int k0 = pKernelBase[0], k1 = pKernelBase[1], k2 = pKernelBase[2];
+	const int k3 = pKernelBase[3], k4 = pKernelBase[4], k5 = pKernelBase[5];
+	const int k6 = pKernelBase[6], k7 = pKernelBase[7], k8 = pKernelBase[8];
+
+	// 오프셋도 풀어두면 인덱싱 비용이 사라지고 컴파일러가 SIMD 화 하기 쉬워진다.
+	const int o0 = nOffsetImage[0], o1 = nOffsetImage[1], o2 = nOffsetImage[2];
+	const int o3 = nOffsetImage[3], o4 = nOffsetImage[4], o5 = nOffsetImage[5];
+	const int o6 = nOffsetImage[6], o7 = nOffsetImage[7], o8 = nOffsetImage[8];
+
+	for (int y = 1; y < Height - 1; ++y)
 	{
-		const uchar* r0 = matPad.ptr<uchar>(y);
-		const uchar* r1 = matPad.ptr<uchar>(y + 1);
-		const uchar* r2 = matPad.ptr<uchar>(y + 2);
-		uchar*       d  = matDst.ptr<uchar>(y);
+		// 행 시작 오프셋을 미리 계산해 inner loop 의 곱셈을 한 번 제거.
+		const int rowBase = y * Width;
 
-		for (int x = 0; x < Width; ++x)
+		for (int x = 1; x < Width - 1; ++x)
 		{
-			const double sum =
-				r0[x]   * k[0] + r0[x+1] * k[1] + r0[x+2] * k[2] +
-				r1[x]   * k[3] + r1[x+1] * k[4] + r1[x+2] * k[5] +
-				r2[x]   * k[6] + r2[x+1] * k[7] + r2[x+2] * k[8];
-			d[x] = cv::saturate_cast<uchar>(sum);
+			const int pos = rowBase + x;
+
+			// sum = Σ Image(x+dx, y+dy) * Kernel(i, j)
+			int sum =
+				imageSrc[pos + o0] * k0 +
+				imageSrc[pos + o1] * k1 +
+				imageSrc[pos + o2] * k2 +
+				imageSrc[pos + o3] * k3 +
+				imageSrc[pos + o4] * k4 +
+				imageSrc[pos + o5] * k5 +
+				imageSrc[pos + o6] * k6 +
+				imageSrc[pos + o7] * k7 +
+				imageSrc[pos + o8] * k8;
+
+			// 0~255 클램핑 — if/else 로 명시적 처리
+			if (sum < 0)        sum = 0;
+			else if (sum > 255) sum = 255;
+
+			imageDst[pos] = static_cast<BYTE>(sum);
 		}
 	}
 }
@@ -415,10 +796,51 @@ void DlgVisionTest::OnBnClickedBtnImageProcess()
 	cv::Mat kernel = BuildKernelFromUI();
 	SaveKernelSettings();
 
-	//// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
-	//ApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
-	// 수정한 3x3 컨볼루션 함수 적용.
-	mhApplyConvolution3x3(*m_refMatProcessed, kernel);
+	// ----------------------------------------------------------------
+	// IDC_RADIO_CONV / _MH / _MHADDR 라디오 선택에 따라 디스패치 + 시간 측정.
+	// std::chrono::steady_clock 으로 ms 미만 정밀도까지 측정 후 ms 단위로 출력.
+	// ----------------------------------------------------------------
+	const TCHAR* methodName = _T("?");
+	const auto t0 = std::chrono::steady_clock::now();
+
+	switch (m_ConvMethod)
+	{
+	case 0:
+	{
+		methodName = _T("ApplyConvolution3x3 (CV)");
+		// InputArray/OutputArray 기반 — dst 를 별도 Mat 로 받아 다시 *m_refMatProcessed 에 반영
+		cv::Mat dst;
+		ApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
+		*m_refMatProcessed = dst;
+		break;
+	}
+	case 1:
+		methodName = _T("mhApplyConvolution3x3 (MH)");
+		mhApplyConvolution3x3(*m_refMatProcessed, kernel);
+		break;
+	case 2:
+		methodName = _T("mhAddrApplyConvolution3x3 (MH-Addr)");
+		mhAddrApplyConvolution3x3(*m_refMatProcessed, kernel);
+		break;
+	default:
+		// 안전장치: 미지원 인덱스이면 기본 구현으로 폴백
+		methodName = _T("ApplyConvolution3x3 (default)");
+		{
+			cv::Mat dst;
+			ApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
+			*m_refMatProcessed = dst;
+		}
+		break;
+	}
+
+	const auto t1 = std::chrono::steady_clock::now();
+	// double 로 받아 소수점 ms 까지 출력 (μs/ns 분해능)
+	const double elapsed_ms =
+		std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+	CString logTime;
+	logTime.Format(_T("[Process] %s elapsed: %.3f ms"), methodName, elapsed_ms);
+	LogToParent(logTime);
 
 	// 영상처리 직후 결과(Result)로 뷰 전환 — 라디오 체크 상태도 함께 갱신한다.
 	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, IDC_RADIO_RESULT);
@@ -455,6 +877,25 @@ void DlgVisionTest::OnBnClickedRadioStatus(UINT ctrl_id)
 	UpdateViewer();
 }
 
+// IDC_RADIO_CONV / IDC_RADIO_CONV_MH / IDC_RADIO_CONV_MHADDR 그룹의 클릭 처리.
+// 선택된 라디오 ID 에 대응하는 인덱스(0/1/2)를 m_ConvMethod 에 저장한다.
+void DlgVisionTest::OnBnClickedRadioConv(UINT ctrl_id)
+{
+	m_ConvMethod = static_cast<int>(ctrl_id - IDC_RADIO_CONV);
+
+	static const TCHAR* kNames[] = {
+		_T("ApplyConvolution3x3 (CV)"),
+		_T("mhApplyConvolution3x3 (MH)"),
+		_T("mhAddrApplyConvolution3x3 (MH-Addr)")
+	};
+	if (m_ConvMethod >= 0 && m_ConvMethod < _countof(kNames))
+	{
+		CString log;
+		log.Format(_T("[Conv] Method selected: %s"), kNames[m_ConvMethod]);
+		LogToParent(log);
+	}
+}
+
 BOOL DlgVisionTest::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
@@ -465,6 +906,10 @@ BOOL DlgVisionTest::OnInitDialog()
 	// 라디오 버튼 초기 체크 상태: 원본(Origin)
 	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, IDC_RADIO_ORIGIN);
 	m_ViewTarget = eViewTarget::Origin;
+
+	// 컨볼루션 함수 라디오 그룹 — 기본은 ApplyConvolution3x3 (CV).
+	CheckRadioButton(IDC_RADIO_CONV, IDC_RADIO_CONV_MHADDR, IDC_RADIO_CONV);
+	m_ConvMethod = 0;
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 예외: OCX 속성 페이지는 FALSE를 반환해야 합니다.
