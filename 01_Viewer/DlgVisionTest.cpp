@@ -70,14 +70,24 @@ void DlgVisionTest::UpdateParameter()
 
 cv::Mat DlgVisionTest::BuildKernelFromUI() const
 {
+#ifdef PRECISION_DOUBLE
 	// 9개 EditBox 값을 읽어 3x3 double 커널 Mat 를 생성한다.
 	cv::Mat kernel(3, 3, CV_64F);
+#else
+	// 9개 EditBox 값을 읽어 3x3 schar(signed char) 커널 Mat 를 생성한다.
+	cv::Mat kernel(3, 3, CV_8S);
+#endif
 	for (int i = 0; i < 9; ++i)
 	{
 		CString s;
+#ifdef PRECISION_DOUBLE
 		m_edKernel[i].GetWindowText(s);
 		double v = _ttof(s);
 		kernel.at<double>(i / 3, i % 3) = v;
+#else
+		// NOTE: 에디트 컨트롤 동적 생성시 ID (IDC_STATIC_KERNER3X3 + 1 + i)
+		kernel.at<schar>(i / 3, i % 3) = static_cast<schar>(GetDlgItemInt(IDC_STATIC_KERNER3X3 + 1 + i));
+#endif
 	}
 	return kernel;
 }
@@ -134,7 +144,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 // ======================================================================
 #ifdef KERNEL_IMPL_CV_INPUT_ARRAY
 
-void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, const cv::Mat kernel)
+void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kernel)
 {
 	// 커널 크기가 유효하지 않는 경우 중단한다.
 	CV_Assert(kernel.rows == 3 && kernel.cols == 3);
@@ -142,8 +152,10 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, cons
 	CV_Assert(!src.empty());
 
 	// 컨볼루션 연산 오류를 막기 위해 참조와 적용 대상을 구분한다.
-	dst = src.clone();
+	cv::Mat dst = src.clone();
 
+#pragma region PRECISION
+#ifdef PRECISION_DOUBLE
 	// 정밀도를 위해 커널의 자료형을 변환한다.
 	kernel.convertTo(kernel, CV_64F);
 
@@ -153,27 +165,52 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, cons
 		kernel.at<double>(1,0),kernel.at<double>(1,1), kernel.at<double>(1,2),
 		kernel.at<double>(2,0),kernel.at<double>(2,1), kernel.at<double>(2,2)
 	};
+#else
+	const char k[9] = {
+		kernel.at<char>(0, 0),kernel.at<char>(0, 1),kernel.at<char>(0, 2),
+		kernel.at<char>(1, 0),kernel.at<char>(1, 1),kernel.at<char>(1, 2),
+		kernel.at<char>(2, 0),kernel.at<char>(2, 1),kernel.at<char>(2, 2),
+	};
+	// TOBE: 연속된 메모리 보장된 경우, .at() 함수 호출 1회로 계산
+	if (kernel.isContinuous())
+	{
+
+	}
+#endif
+#pragma endregion PRECISION
 
 	const int Height = src.rows;
 	const int Width  = src.cols;
 
-	for (int y = 0 + 1; y < Height - 1; y++)
+	for (int y = 0 + 1; y < Height - 1; y++) // NOTE: 코드 스타일 적용 `uchar` -> `BYTE`
 	{
-		const uchar* r0 = src.ptr<uchar>(y - 1);
-		const uchar* r1 = src.ptr<uchar>(y);
-		const uchar* r2 = src.ptr<uchar>(y + 1);
-		uchar* d        = dst.ptr<uchar>(y - 1);
-		for (int x = 0 + 1; x < Width - 1; x++) // TOBE: 
+		const BYTE* r0 = src.ptr<BYTE>(y - 1);
+		const BYTE* r1 = src.ptr<BYTE>(y);
+		const BYTE* r2 = src.ptr<BYTE>(y + 1);
+		BYTE* d        = dst.ptr<BYTE>(y - 1);
+		for (int x = 0 + 1; x < Width - 1; x++)
 		{
 			const double sum =
 				r0[x] * k[0] + r0[x - 1] * k[1] + r0[x - 1] * k[2] +
 				r1[x] * k[3] + r1[x    ] * k[4] + r1[x    ] * k[5] +
 				r2[x] * k[6] + r2[x + 1] * k[7] + r2[x + 1] * k[8];
-			d[x] = cv::saturate_cast<uchar>(sum);
+			
+			// d[x] = cv::saturate_cast<BYTE>(sum);
+			// d[x] = std::clamp(d[x], 0, 255);
+			// NOTE: OpenCV 와 C++17 제거
+			d[x] = sum;
+			if (d[x] < 0)
+				d[x] = 0;
+			if (d[x] > 255)
+				d[x] = 255;
+			
 		}
 	}
 
 	// 연산 결과를 반영한다.
+	// NOTE: `src = dst;` 함수 프로토타입으로 차단 ; 구문은 src 변수가 dst 를 참조하도록 작동.
+	//	따라서 자식 대화상자가 생성되지 않은 경우, 부모 대화상자에서 src(자식:m_refMatProcessed / 부모:m_matProcessed) 변수 접근시 Segmentation Fault
+	// NOTE: 마찬가지로 `src = dst.clone();` 역시 작성하면 안되는 코드.
 	dst.copyTo(src);
 }
 
@@ -363,14 +400,10 @@ void DlgVisionTest::OnBnClickedBtnImageProcess()
 	cv::Mat kernel = BuildKernelFromUI();
 	SaveKernelSettings();
 
-	cv::Mat dst;
 	//// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
 	//ApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
 	// 수정한 3x3 컨볼루션 함수 적용.
-	dst = m_refMatProcessed->clone();
-	mhApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
-
-	*m_refMatProcessed = dst;
+	mhApplyConvolution3x3(*m_refMatProcessed, kernel);
 
 	// 영상처리 직후 결과(Result)로 뷰 전환 — 라디오 체크 상태도 함께 갱신한다.
 	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, IDC_RADIO_RESULT);
@@ -382,7 +415,11 @@ void DlgVisionTest::OnBnClickedBtnImageProcess()
 	log = _T("[Process] Conv3x3 applied: [");
 	for (int i = 0; i < 9; ++i)
 	{
+#ifdef PRECISION_DOUBLE
 		tmp.Format(_T("%g%s"), kernel.at<double>(i / 3, i % 3), i < 8 ? _T(",") : _T(""));
+#else
+		tmp.Format(_T("%hhd%s"), kernel.at<schar>(i / 3, i % 3), i < 8 ? _T(",") : _T(""));
+#endif
 		log += tmp;
 	}
 	log += _T("]");

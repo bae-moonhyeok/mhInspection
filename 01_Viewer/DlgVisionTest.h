@@ -66,7 +66,7 @@ private:
 	// 현재 UI 에 입력된 값으로부터 3x3 커널 Mat 를 구성한다.
 	cv::Mat BuildKernelFromUI() const;
 	// 3x3 커널을 통해 컨볼루션 연산을 수행한다.
-	void mhApplyConvolution3x3(const cv::Mat& src, cv::Mat& dst, const cv::Mat kernel);
+	void mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kernel);
 	void ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel);
 
 	// 커널 설정 파일 입출력
