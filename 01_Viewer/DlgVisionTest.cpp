@@ -185,6 +185,10 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	int nVal;
 	int pos;
 
+#pragma region IS_COTINUOUS_MEMORY
+	// 이미지와 커널의 메모리가 연속되지 않은 경우 중단한다.
+	CV_Assert(src.isContinuous() && kernel.isContinuous());
+
 	PBYTE image = (PBYTE)src.ptr();
 	PBYTE imageDst = (PBYTE)dst.ptr();
 
@@ -193,15 +197,15 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 		for (int x = 0 + 1; x < Width - 1; x++)
 		{
 			pos = y * Width + x;
-			nVal  = image[(y - 1) * Width + (x - 1)] * k[0];
-			nVal += image[(y - 1) * Width + (x + 0)] * k[1];
-			nVal += image[(y - 1) * Width + (x + 1)] * k[2];
-			nVal += image[(y + 0) * Width + (x - 1)] * k[3];
-			nVal += image[(y + 0) * Width + (x + 0)] * k[4];
-			nVal += image[(y + 0) * Width + (x + 1)] * k[5];
-			nVal += image[(y + 1) * Width + (x - 1)] * k[6];
-			nVal += image[(y + 1) * Width + (x + 0)] * k[7];
-			nVal += image[(y + 1) * Width + (x - 1)] * k[8];
+			nVal  = image[pos - Width - 1] * k[0];
+			nVal += image[pos - Width + 0] * k[1];
+			nVal += image[pos - Width + 1] * k[2];
+			nVal += image[pos +     0 - 1] * k[3];
+			nVal += image[pos +     0 + 0] * k[4];
+			nVal += image[pos +     0 + 1] * k[5];
+			nVal += image[pos + Width - 1] * k[6];
+			nVal += image[pos + Width + 0] * k[7];
+			nVal += image[pos + Width - 1] * k[8];
 
 			if (nVal < 0)
 				nVal = 0;
@@ -211,6 +215,7 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 			imageDst[pos] = nVal;
 		}
 	}
+#pragma endregion IS_COTINUOUS_MEMORY
 
 	// 연산 결과를 반영한다.
 	// NOTE: `src = dst;` 함수 프로토타입으로 차단 ; 구문은 src 변수가 dst 를 참조하도록 작동.
