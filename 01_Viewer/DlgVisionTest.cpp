@@ -189,28 +189,33 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	// 이미지와 커널의 메모리가 연속되지 않은 경우 중단한다.
 	CV_Assert(src.isContinuous() && kernel.isContinuous());
 
-	PBYTE image = (PBYTE)src.ptr();
-	PBYTE imageDst = (PBYTE)dst.ptr();
+	PBYTE image        = (PBYTE)src.ptr();
+	PBYTE imageDst     = (PBYTE)dst.ptr();
+	PCHAR pKernelBase  = (PCHAR)kernel.ptr();
 
 	const int nOffsetImage[] = { -Width - 1, -Width + 0, -Width + 1,
                                          -1,        + 0,         +1,
-								 +Width - 1, -Width + 0, +Width + 1,
+								 +Width - 1, +Width + 0, +Width + 1,
 	};
 
+	const int*  pOffsetImage;
+	const char* pKernel;
 	for (int y = 0 + 1; y < Height - 1; y++) // TOBE: Border
 	{
 		for (int x = 0 + 1; x < Width - 1; x++)
 		{
+			pOffsetImage = nOffsetImage;
+			pKernel = pKernelBase;
 			pos = y * Width + x;
-			nVal  = image[pos + nOffsetImage[0]] * k[0];
-			nVal += image[pos + nOffsetImage[1]] * k[1];
-			nVal += image[pos + nOffsetImage[2]] * k[2];
-			nVal += image[pos + nOffsetImage[3]] * k[3];
-			nVal += image[pos + nOffsetImage[4]] * k[4];
-			nVal += image[pos + nOffsetImage[5]] * k[5];
-			nVal += image[pos + nOffsetImage[6]] * k[6];
-			nVal += image[pos + nOffsetImage[7]] * k[7];
-			nVal += image[pos + nOffsetImage[8]] * k[8];
+			nVal  = image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
+			nVal += image[pos + *pOffsetImage++] * *pKernel++;
 
 			if (nVal < 0)
 				nVal = 0;
@@ -231,45 +236,85 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 
 void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst, cv::InputArray kernel)
 {
-	// InputArray 로 추상화된 입력을 getMat() 로 바인딩하여 ptr<>() 로 순회한다.
+	// ------------------------------------------------------------------
+	// mhApplyConvolution3x3 의 포인터 + 8-이웃 오프셋 테이블 패턴을 InputArray
+	// 시그니처에 맞춰 재구현.
+	//   - 픽셀 접근: 행 베이스(rowBase) + 9개 상대 오프셋(nOffsetImage)
+	//   - 누산:     int 누산기로 오버플로우 방지
+	//   - 클램핑:   if-else 로 0..255 직접 클램프
+	//   - 경계:     y=1..Height-2, x=1..Width-2 (테두리 1px 은 원본 복사)
+	// ------------------------------------------------------------------
 	cv::Mat matSrc = src.getMat();
 	cv::Mat matK   = kernel.getMat();
+
 	CV_Assert(matK.rows == 3 && matK.cols == 3);
 	CV_Assert(!matSrc.empty() && matSrc.type() == CV_8UC1);
+	CV_Assert(matSrc.isContinuous());
 
-	cv::Mat matKd;
-	matK.convertTo(matKd, CV_64F);
-
-	// 9개 커널 계수를 스택에 펼쳐 핫 루프 최적화
-	const double k[9] = {
-		matKd.at<double>(0,0), matKd.at<double>(0,1), matKd.at<double>(0,2),
-		matKd.at<double>(1,0), matKd.at<double>(1,1), matKd.at<double>(1,2),
-		matKd.at<double>(2,0), matKd.at<double>(2,1), matKd.at<double>(2,2)
-	};
+	// BuildKernelFromUI 의 PRECISION_DOUBLE 매크로에 따라 kernel 의 자료형이
+	// CV_8S / CV_64F 둘 중 하나로 들어온다. 둘 다 정수(CV_32S)로 통일하여 처리.
+	cv::Mat matKi;
+	matK.convertTo(matKi, CV_32S);
+	CV_Assert(matKi.isContinuous());
 
 	const int Height = matSrc.rows;
 	const int Width  = matSrc.cols;
 
-	cv::Mat matPad;
-	cv::copyMakeBorder(matSrc, matPad, 1, 1, 1, 1, cv::BORDER_REPLICATE);
-
+	// 결과 Mat 준비 — 테두리 1px 은 원본을 그대로 복사하여 검은 띠를 방지.
 	dst.create(Height, Width, matSrc.type());
 	cv::Mat matDst = dst.getMat();
+	matSrc.copyTo(matDst);
+	CV_Assert(matDst.isContinuous());
 
-	for (int y = 0; y < Height; ++y)
+	// ---------------- 핫 루프용 포인터/오프셋 (참조 베이스) ----------------
+	const BYTE* imageSrc    = matSrc.ptr<BYTE>();      // 읽기 전용 원본
+	BYTE*       imageDst    = matDst.ptr<BYTE>();      // 쓰기 전용 결과
+	const int*  pKernelBase = matKi.ptr<int>();        // CV_32S, 9개 계수 (행 우선)
+
+	// 9개 상대 오프셋: (-1,-1) (-1,0) (-1,+1)  (0,-1) (0,0) (0,+1)  (+1,-1) (+1,0) (+1,+1)
+	// (참조 코드의 +Width 행 가운데 항목 오타(-Width)를 +Width 로 정정)
+	const int nOffsetImage[9] = {
+		-Width - 1, -Width + 0, -Width + 1,
+				-1,         +0,         +1,
+		+Width - 1, +Width + 0, +Width + 1,
+	};
+
+	// 9개 커널 계수도 스택에 펼쳐 inner-loop 의 메모리 접근 최소화.
+	const int k0 = pKernelBase[0], k1 = pKernelBase[1], k2 = pKernelBase[2];
+	const int k3 = pKernelBase[3], k4 = pKernelBase[4], k5 = pKernelBase[5];
+	const int k6 = pKernelBase[6], k7 = pKernelBase[7], k8 = pKernelBase[8];
+
+	// 오프셋도 풀어두면 인덱싱 비용이 사라지고 컴파일러가 SIMD 화 하기 쉬워진다.
+	const int o0 = nOffsetImage[0], o1 = nOffsetImage[1], o2 = nOffsetImage[2];
+	const int o3 = nOffsetImage[3], o4 = nOffsetImage[4], o5 = nOffsetImage[5];
+	const int o6 = nOffsetImage[6], o7 = nOffsetImage[7], o8 = nOffsetImage[8];
+
+	for (int y = 1; y < Height - 1; ++y)
 	{
-		const uchar* r0 = matPad.ptr<uchar>(y);
-		const uchar* r1 = matPad.ptr<uchar>(y + 1);
-		const uchar* r2 = matPad.ptr<uchar>(y + 2);
-		uchar*       d  = matDst.ptr<uchar>(y);
+		// 행 시작 오프셋을 미리 계산해 inner loop 의 곱셈을 한 번 제거.
+		const int rowBase = y * Width;
 
-		for (int x = 0; x < Width; ++x)
+		for (int x = 1; x < Width - 1; ++x)
 		{
-			const double sum =
-				r0[x]   * k[0] + r0[x+1] * k[1] + r0[x+2] * k[2] +
-				r1[x]   * k[3] + r1[x+1] * k[4] + r1[x+2] * k[5] +
-				r2[x]   * k[6] + r2[x+1] * k[7] + r2[x+2] * k[8];
-			d[x] = cv::saturate_cast<uchar>(sum);
+			const int pos = rowBase + x;
+
+			// sum = Σ Image(x+dx, y+dy) * Kernel(i, j)
+			int sum =
+				imageSrc[pos + o0] * k0 +
+				imageSrc[pos + o1] * k1 +
+				imageSrc[pos + o2] * k2 +
+				imageSrc[pos + o3] * k3 +
+				imageSrc[pos + o4] * k4 +
+				imageSrc[pos + o5] * k5 +
+				imageSrc[pos + o6] * k6 +
+				imageSrc[pos + o7] * k7 +
+				imageSrc[pos + o8] * k8;
+
+			// 0~255 클램핑 — if/else 로 명시적 처리
+			if (sum < 0)        sum = 0;
+			else if (sum > 255) sum = 255;
+
+			imageDst[pos] = static_cast<BYTE>(sum);
 		}
 	}
 }
