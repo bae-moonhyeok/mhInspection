@@ -179,15 +179,13 @@ void DlgVisionTest::mhAddrApplyConvolution3x3(const cv::Mat& src, const cv::Mat 
 	CV_Assert(!src.empty() && src.type() == CV_8UC1);
 	CV_Assert(src.isContinuous() && kernel.isContinuous());
 
-	cv::Mat dst = src.clone();   // 테두리 1px 보존
-	// BORDER_REPLICATE 경계 확장
-	cv::Mat matdst = src.clone();
-	cv::copyMakeBorder(src, matdst, 1, 1, 1, 1, cv::BORDER_REPLICATE);
+	// 출력용 버퍼 (테두리 1px 은 src 값을 그대로 보존; 내부만 컨볼루션 결과로 덮어씀)
+	cv::Mat dst = src.clone();
 	const int Height = src.rows;
 	const int Width  = src.cols;
 
 	PBYTE image       = (PBYTE)src.ptr();
-	PBYTE imageDst    = (PBYTE)matdst.ptr();
+	PBYTE imageDst    = (PBYTE)dst.ptr();
 	PCHAR pKernelBase = (PCHAR)kernel.ptr();
 
 #if defined(MHADDR_USE_AVX512)
@@ -420,36 +418,63 @@ void DlgVisionTest::mhAddrApplyConvolution3x3(const cv::Mat& src, const cv::Mat 
 
 #else
 	// ==================================================================
-	// [기본] 단일 while 루프 — displacement(증분) 어드레싱
+	// [기본] 단일 while 루프 — displacement(증분) 어드레싱, if 분기 없음
 	// ------------------------------------------------------------------
-	// 기존 2중 for 루프를 하나의 while 로 평탄화.
-	//   - 행 끝(우측 경계) 도달 시 +2 점프하여 다음 행 (1, y+1) 으로 이동
-	//   - 9-step 후 pImage 가 (curr+1, curr+1) 이므로 -Width 로 center 복귀
+	// 핵심 아이디어:
+	//   1) src 를 (Width+2) × (Height+2) 패딩 버퍼(matSrcPad)에 수동 복제
+	//      — cv::copyMakeBorder 를 쓰지 않고 memcpy + 좌/우 픽셀 복사로 구현
+	//   2) 동일 stride 의 패딩 dst 버퍼(matDstPad)에 결과를 누적
+	//   3) pImage 와 pImageDst 모두 paddedW stride 로 1바이트씩 평탄 진행
+	//      → 행 경계에 도달하더라도 패딩이 있어 9-step 읽기가 buffer 안에서 완료됨
+	//      → if 분기 없이 단순 while + ++ 로 끝 (가짜 위치의 결과는 dstPad 의
+	//        경계에 쓰이고, 마지막 추출 시 자동 폐기)
+	//   4) 마지막에 matDstPad 의 inner 영역만 dst (실제 출력) 로 추출
 	// ==================================================================
-	const int nOffsetDiff[] = { -Width - 1, 1, 1,
-								+Width - 2, 1, 1,
-								+Width - 2, 1, 1, };
+	const int paddedW = Width + 2;
+	const int paddedH = Height + 2;
+
+	cv::Mat matSrcPad(paddedH, paddedW, CV_8UC1);
+	cv::Mat matDstPad(paddedH, paddedW, CV_8UC1, cv::Scalar(0));
+	PBYTE pSrcPad = matSrcPad.ptr();
+	PBYTE pDstPad = matDstPad.ptr();
+
+	// ---------- 수동 BORDER_REPLICATE ----------
+	// (1) 내부에 src 행 복사
+	for (int y = 0; y < Height; ++y)
+		std::memcpy(pSrcPad + (y + 1) * paddedW + 1, image + y * Width, Width);
+
+	// (2) 좌/우 1열을 각 행의 첫/마지막 inner 픽셀로 복제 (행 1..paddedH-2)
+	for (int y = 1; y < paddedH - 1; ++y)
+	{
+		BYTE* row = pSrcPad + y * paddedW;
+		row[0]           = row[1];                  // 좌측 = 첫 inner 픽셀
+		row[paddedW - 1] = row[paddedW - 2];        // 우측 = 마지막 inner 픽셀
+	}
+
+	// (3) 상단 1행 = inner 첫 행(=padded 행 1) 복제, 하단 1행 = inner 마지막 행 복제
+	std::memcpy(pSrcPad,                           pSrcPad + paddedW,                paddedW);
+	std::memcpy(pSrcPad + (paddedH - 1) * paddedW, pSrcPad + (paddedH - 2) * paddedW, paddedW);
+
+	// ---------- 컨볼루션 (단일 while, if 없음) ----------
+	// 패딩 버퍼의 stride = paddedW. nOffsetDiff 도 paddedW 기준.
+	const int nOffsetDiff[] = { -paddedW - 1, 1, 1,
+								+paddedW - 2, 1, 1,
+								+paddedW - 2, 1, 1, };
 
 	int                  nVal;
 	const int*           pOffsetDiff;
 	const char*          pKernel;
 
-	const unsigned char* pImage       = image    + Width + 1;                    // (1, 1)
-	unsigned char*       pImageDst    = imageDst + Width + 1;
-	const unsigned char* pImageEnd    = image    + (Height - 1) * Width;          // 마지막 행 시작 (배타)
-	const unsigned char* pImageRowEnd = pImage   + (Width - 2);                   // 현 행의 우측 경계 주소
+	const unsigned char* pImage    = pSrcPad + paddedW + 1;                       // padded(1, 1)
+	unsigned char*       pImageDst = pDstPad + paddedW + 1;
+
+	// 종료 주소: 마지막 inner 픽셀 padded(paddedW-2, paddedH-2) 의 다음 주소.
+	//   = (paddedH-2) * paddedW + (paddedW-2) + 1
+	//   = (paddedH-1) * paddedW - 1
+	const unsigned char* pImageEnd = pSrcPad + (paddedH - 1) * paddedW - 1;
 
 	while (pImage < pImageEnd)
 	{
-		//// 행 끝 도달 → 다음 행 시작으로 점프 (현재행 우측 1 + 다음행 좌측 1 = 2 byte)
-		//if (pImage >= pImageRowEnd)
-		//{
-		//	pImage       += 2;
-		//	pImageDst    += 2;
-		//	pImageRowEnd += Width;
-		//	continue;
-		//}
-
 		pOffsetDiff = nOffsetDiff;
 		pKernel     = pKernelBase;
 
@@ -464,20 +489,26 @@ void DlgVisionTest::mhAddrApplyConvolution3x3(const cv::Mat& src, const cv::Mat 
 		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
 		pImage += *pOffsetDiff++;  nVal += *pImage * *pKernel++;
 
-		// 9 step 끝나면 pImage 는 (curr+1, curr+1) → 다음 center (curr+1, curr) 로 -Width
-		pImage -= Width;
+		// 9-step 후 pImage 는 (curr+1, curr+1). -= paddedW 로 한 행 위로 ⇒ (curr+1, curr).
+		// 이는 다음 iteration 의 center 위치(현재 center 의 한 칸 우측) 가 된다.
+		// 이후 *pImageDst++ 의 postfix++ 만 사용하므로 pImage 의 추가 ++ 은 없음.
+		pImage -= paddedW;
 
+		// 0~255 클램핑 — if/else (경계 분기와는 별개의 산술 클램프)
 		if (nVal < 0)        nVal = 0;
 		else if (nVal > 255) nVal = 255;
-		*pImageDst = static_cast<BYTE>(nVal);
 
-		++pImage;
-		++pImageDst;
+		*pImageDst++ = static_cast<BYTE>(nVal);
 	}
+
+	// ---------- 패딩 dst 의 inner 영역 → dst (cv::Mat) 로 추출 ----------
+	// 패딩 가장자리에 쓰인 "가짜 위치" 결과(행 전환 시 2픽셀씩) 는 여기서 자동 폐기된다.
+	for (int y = 0; y < Height; ++y)
+		std::memcpy(imageDst + y * Width, pDstPad + (y + 1) * paddedW + 1, Width);
 #endif
 
 	// in-place 결과 반영 — cv::Mat 의 const 는 헤더에만 적용되며 데이터는 mutable.
-	matdst.copyTo(src);
+	dst.copyTo(src);
 }
 
 void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kernel)
