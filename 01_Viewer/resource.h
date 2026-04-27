@@ -29,6 +29,9 @@
 #define IDC_CHECK_KEEP_IMAGE            1036
 #define IDC_LIST1                       1037
 #define IDC_LIST_LOG                    1037
+#define IDC_BTN_FIND_CONTOUR            1037
+#define IDC_RADIO_RESULT2               1038
+#define IDC_RADIO_OVERLAY               1038
 #define IDC_BTN_CLONE_ORIGIN            1043
 #define IDC_BTN_KERNEL_SAVE             1050
 #define IDC_BTN_KERNEL_LOAD             1051

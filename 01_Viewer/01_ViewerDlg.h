@@ -56,6 +56,7 @@ public:
 
 private:
 	lt::CImageViewEx* m_WndImageView = nullptr;
+	// TOBE: lt::CImageViewEx* 단일 / 복수 비교해볼 것. ^2026-04-26 13:05
 
 	cv::Mat m_matCopy;
 
@@ -80,6 +81,7 @@ private:
 	BYTE* m_ImageBuffer = nullptr;
 	cv::Mat m_matProcessed;
 	size_t m_ProcessedImageSizeInBytes;
+	cv::Mat m_matOverlaid;
 
 	void CleanUpInpsectionDialog();
 	void RefreshInpsectionDialogImage(size_t bytes);

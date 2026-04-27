@@ -51,6 +51,7 @@ BEGIN_MESSAGE_MAP(DlgVisionTest, CDialogEx)
 	ON_COMMAND_RANGE(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, &DlgVisionTest::OnBnClickedRadioStatus)
 	ON_WM_DESTROY()
 	ON_BN_CLICKED(IDC_CHECK_KEEP_IMAGE, &DlgVisionTest::OnBnClickedCheckKeepImage)
+	ON_BN_CLICKED(IDC_BTN_FIND_CONTOUR, &DlgVisionTest::OnBnClickedBtnFindContour)
 END_MESSAGE_MAP()
 
 // DlgVisionTest 메시지 처리기
@@ -166,16 +167,16 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 		kernel.at<double>(2,0),kernel.at<double>(2,1), kernel.at<double>(2,2)
 	};
 #else
-	const char k[9] = {
-		kernel.at<char>(0, 0),kernel.at<char>(0, 1),kernel.at<char>(0, 2),
-		kernel.at<char>(1, 0),kernel.at<char>(1, 1),kernel.at<char>(1, 2),
-		kernel.at<char>(2, 0),kernel.at<char>(2, 1),kernel.at<char>(2, 2),
-	};
-	// TOBE: 연속된 메모리 보장된 경우, .at() 함수 호출 1회로 계산
-	if (kernel.isContinuous())
-	{
+	//const char k[9] = {
+	//	kernel.at<char>(0, 0),kernel.at<char>(0, 1),kernel.at<char>(0, 2),
+	//	kernel.at<char>(1, 0),kernel.at<char>(1, 1),kernel.at<char>(1, 2),
+	//	kernel.at<char>(2, 0),kernel.at<char>(2, 1),kernel.at<char>(2, 2),
+	//};
+	//// TOBE: 연속된 메모리 보장된 경우, .at() 함수 호출 1회로 계산
+	//if (kernel.isContinuous())
+	//{
 
-	}
+	//}
 #endif
 #pragma endregion PRECISION
 
@@ -183,7 +184,7 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	const int Width  = src.cols;
 
 	int nVal;
-	int pos;
+	int pos = Width;
 
 #pragma region IS_COTINUOUS_MEMORY
 	// 이미지와 커널의 메모리가 연속되지 않은 경우 중단한다.
@@ -202,11 +203,11 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	const char* pKernel;
 	for (int y = 0 + 1; y < Height - 1; y++) // TOBE: Border
 	{
+		pos++;
 		for (int x = 0 + 1; x < Width - 1; x++)
 		{
 			pOffsetImage = nOffsetImage;
 			pKernel = pKernelBase;
-			pos = y * Width + x;
 			nVal  = image[pos + *pOffsetImage++] * *pKernel++;
 			nVal += image[pos + *pOffsetImage++] * *pKernel++;
 			nVal += image[pos + *pOffsetImage++] * *pKernel++;
@@ -222,8 +223,9 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 			if (nVal > 255)
 				nVal = 255;
 
-			imageDst[pos] = nVal;
+			imageDst[pos++] = nVal;
 		}
+		pos++;
 	}
 #pragma endregion IS_COTINUOUS_MEMORY
 
@@ -466,7 +468,7 @@ void DlgVisionTest::OnBnClickedBtnImageProcess()
 	mhApplyConvolution3x3(*m_refMatProcessed, kernel);
 
 	// 영상처리 직후 결과(Result)로 뷰 전환 — 라디오 체크 상태도 함께 갱신한다.
-	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, IDC_RADIO_RESULT);
+	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, IDC_RADIO_RESULT);
 	m_ViewTarget = eViewTarget::Result;
 	UpdateViewer();
 
@@ -508,7 +510,7 @@ BOOL DlgVisionTest::OnInitDialog()
 	CreateKernelUI();
 
 	// 라디오 버튼 초기 체크 상태: 원본(Origin)
-	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, IDC_RADIO_ORIGIN);
+	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, IDC_RADIO_ORIGIN);
 	m_ViewTarget = eViewTarget::Origin;
 
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -753,4 +755,230 @@ void DlgVisionTest::ResetProcessedImage(const BYTE* pSrc, int width, int height,
 void DlgVisionTest::OnBnClickedCheckKeepImage()
 {
 
+}
+
+void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
+{
+	// 전달된 이미지가 비어있는 경우 중단한다.
+	CV_Assert(!matProcessed.empty());
+
+	const int Height = matProcessed.rows;
+	const int Width = matProcessed.cols;
+
+#pragma region IS_COTINUOUS_MEMORY
+	// 이미지 메모리가 연속되지 않은 경우 중단한다.
+	CV_Assert(matProcessed.isContinuous() && matOverlaid.isContinuous());
+
+	PBYTE image = (PBYTE)matProcessed.data;
+	PBYTE imageDst = (PBYTE)matOverlaid.data;
+
+	//int min_x = Width, max_x = -1, min_y = Height, max_y = -1;
+	//const BYTE threshold = 100;
+	//for (int y = 0; y < Height; y++)
+	//{
+	//	for (int x = 0; x < Width; x++)
+	//	{
+	//		if (image[y * Width + x] < threshold)
+	//		{
+	//			min_x = std::min(min_x, x);
+	//			max_x = std::max(max_x, x);
+	//			min_y = std::min(min_y, y);
+	//			max_y = std::max(max_y, y);
+	//		}
+	//	}
+	//}
+
+	//CV_Assert(Width == matProcessed.step);
+	//cv::Mat matVisited = cv::Mat::zeros(Width, Height, matProcessed.type());
+	//image = (PBYTE)matProcessed.data;
+	//imageDst = (PBYTE)matOverlaid.data;
+	//PBYTE visited = (PBYTE)matVisited.data;
+	//
+	//int pos;
+	//const int dy[] = { -1, -1, -1,  0, 0, 0,  1, 1, 1 };
+	//const int dx[] = { -1,  0,  1, -1, 0, 1, -1, 0, 1 };
+	//
+	//std::vector<std::vector<CPoint>> contours;
+	//
+	//for (int y = 1; y < Height - 1; y++)
+	//{
+	//	for (int x = 1; x < Width - 1; x++)
+	//	{
+	//		pos = y * Width + x;
+	//		if (!image[pos])
+	//			continue;
+	//		if (visited[pos])
+	//			continue;
+	//		if (image[(y - 1) * Width + x])
+	//			continue;
+	//
+	//		std::vector<CPoint> cntr;
+	//		int currX = x, currY = y;
+	//		int dir = 0;
+	//		int startDir = 0;
+	//
+	//		cntr.push_back(CPoint(currX, currY));
+	//		visited[currY * Width + currX] = 1;
+	//
+	//		while (true)
+	//		{
+	//			bool found = false;
+	//			int nx, ny;
+	//			for (; dir < 9; dir++)
+	//			{
+	//				nx = currX + dx[dir];
+	//				ny = currY + dy[dir];
+	//
+	//				// TOBE:
+	//				if (0 > ny * Width + nx || ny * Width + nx > Width * Height)
+	//					continue;
+	//
+	//				if (image[ny * Width + nx])
+	//				{
+	//					currX = nx;
+	//					currY = ny;
+	//					
+	//					if (currX == x && currY == y)
+	//					{
+	//						found = false;
+	//						break;
+	//					}
+	//					
+	//					cntr.push_back(CPoint(currX, currY));
+	//					visited[currY * Width + currX] = 1;
+	//					found = true;
+	//					break;
+	//				}
+	//			}
+	//
+	//			if (!found)
+	//				break;
+	//			if (cntr.size() > (Height - 1) * (Width - 1))
+	//				break;
+	//		}
+	//		if (cntr.size() >= 3) 
+	//			contours.push_back(cntr);
+	//	}
+	//}
+
+	// ^2026-04-27 11:40
+	CV_Assert(Width == matProcessed.step);
+
+	cv::Mat matBinary = cv::Mat::zeros(Height, Width, matProcessed.type());
+	image = (PBYTE)matProcessed.data;
+	imageDst = (PBYTE)matOverlaid.data;
+	PBYTE binary = (PBYTE)matBinary.data;
+	PBYTE binary_limit = binary + Height * Width;
+	// 이진화
+	while (binary < binary_limit)
+	{
+		*binary++ = *image++ > 100 ? 255 : 0;
+	}
+
+	std::vector<CPoint> mhContours;
+	int Channels = matOverlaid.channels();
+	for (int y = 0; y < Height; y++)
+	{
+		/* LEFT -> RIGHT */
+		bool isEnclosed5Pixel = false;
+		for (int x = 0; x < Width - 5; x++)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			if (*binary)
+				continue;
+
+			binary_limit = binary + 5;
+			BYTE value = *binary++;
+			while (binary < binary_limit)
+			{
+				value |= *binary++;
+			}
+			if (!value)
+			{
+				isEnclosed5Pixel = true;
+				break;
+			}
+		}
+
+		if (isEnclosed5Pixel)
+		{
+			int currX = binary_limit - 5 - y * Width - (PBYTE)matBinary.data;
+			mhContours.push_back(CPoint(currX, y));
+
+			//PBYTE b = imageDst + y * Width + currX;
+			PBYTE g = imageDst + (y * Width + currX + 1) * Channels;
+			//PBYTE r = imageDst + y * Width + currX + 2;
+			//PBYTE g = b + 1;
+			//PBYTE r = b + 2;
+			memset(g, 0xffff, sizeof(WORD));
+
+			CString strLog;
+			strLog.Format(L"contour L->R Info : (%4d,%4d)", 
+				currX, y);
+			LogToParent(strLog);
+		}
+
+		/* RIGHT -> LEFT */
+		isEnclosed5Pixel = false;
+		for (int x = Width - 1; x >= 5; x--)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			if (*binary)
+				continue;
+
+			binary_limit = binary - 5;
+			BYTE value = *binary--;
+			while (binary < binary_limit)
+			{
+				value |= *binary--;
+			}
+			if (!value)
+			{
+				isEnclosed5Pixel = true;
+				break;
+			}
+		}
+		if (isEnclosed5Pixel)
+		{
+			int currX = binary_limit + 5 - y * Width - (PBYTE)matBinary.data;
+			mhContours.push_back(CPoint(currX, y));
+
+			PBYTE r = imageDst + (y * Width + currX) * Channels + 2;
+			*r = (BYTE)0xff;
+
+			CString strLog;
+			strLog.Format(L"contour R->L Info : (%4d,%4d)",
+				currX, y);
+			LogToParent(strLog);
+		}
+	}
+
+#pragma endregion IS_COTINUOUS_MEMORY
+	CString strLog;
+	strLog.Format(L"contour Size : %4d", mhContours.size());
+	LogToParent(strLog);
+}
+
+void DlgVisionTest::OnBnClickedBtnFindContour()
+{
+	// 처리 대상 이미지가 유효한지 확인
+	if (m_refMatOverlaid == nullptr || m_refMatOverlaid->empty())
+	{
+		AfxMessageBox(_T("처리할 이미지가 없습니다. 먼저 이미지를 불러오세요."), MB_ICONWARNING);
+		return;
+	}
+
+	// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
+	mhFindContour(*m_refMatProcessed, *m_refMatOverlaid, eRetrievalModes::EXTERNAL);
+
+	// 영상처리 직후 오버레이(Overlay)로 뷰 전환 — 라디오 체크 상태도 함께 갱신한다.
+	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, IDC_RADIO_OVERLAY);
+	m_ViewTarget = eViewTarget::Overlay;
+	UpdateViewer();
+
+	CString log, tmp;
+	log = _T("[Process] Find Contour applied: [");
+
+	log += _T("]");
+	LogToParent(log);
 }

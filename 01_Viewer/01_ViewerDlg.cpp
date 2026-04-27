@@ -474,6 +474,13 @@ void CMy01ViewerDlg::InitProcessedImage()
 	//	cv::cvtColor(m_matCopy, m_matProcessed, cv::COLOR_RGB2GRAY);
 
 	m_ProcessedImageSizeInBytes = m_matProcessed.rows * m_matProcessed.cols * m_matProcessed.elemSize1();
+
+	// 오버레이 이미지를 구성한다.
+	m_matOverlaid = m_matCopy.clone();
+	if (m_matOverlaid.channels() == 1)
+		cv::cvtColor(m_matOverlaid, m_matOverlaid, cv::COLOR_GRAY2BGR);
+	else if (m_matOverlaid.channels() == 4)
+		cv::cvtColor(m_matOverlaid, m_matOverlaid, cv::COLOR_BGRA2BGR);
 }
 
 void CMy01ViewerDlg::OnBnClickedBtnDlg()
@@ -496,6 +503,8 @@ void CMy01ViewerDlg::OnBnClickedBtnDlg()
 
 		// 자식 대화상자가 m_matProcessed 에 직접 접근할 수 있도록 참조를 넘긴다.
 		m_DlgVisionTest->SetProcessedMatRef(&m_matProcessed);
+		// 자식 대화상자가 m_matOverlaid 에 직접 접근할 수 있도록 참조를 넘긴다.
+		m_DlgVisionTest->SetOverlayedMatRef(&m_matOverlaid);
 	}
 
 	// 이미 존재하거나 새로 생성된 경우 화면에 표시한다.
@@ -588,7 +597,12 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 		// 자식 대화상자(DlgVisionTest) 가 보낸 로그 요청.
 		// LPARAM 은 LPCTSTR 문자열 포인터 — SendMessage 동기 경로라 포인터 유효성 보장.
 		LPCTSTR sz = reinterpret_cast<LPCTSTR>(lParam);
-		if (sz != nullptr) AddLog(sz);
+		if (sz != nullptr) 
+		{
+			m_listLog.SetRedraw(FALSE);
+			AddLog(sz);
+			m_listLog.SetRedraw(TRUE);
+		}
 	}
 	else if (message == WM_UPDATE_VIEW)
 	{
@@ -600,7 +614,7 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 			m_WndImageView->UpdateImageFromArray(
 				m_matCopy.data, m_matCopy.cols, m_matCopy.rows, wBpp, FALSE);
 		}
-		else
+		else if (static_cast<eViewTarget>(wParam) == eViewTarget::Result)
 		{
 			// 결과(m_matProcessed) 출력 — filter2D 결과 반영
 			if (!m_matProcessed.empty())
@@ -608,6 +622,16 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 				WORD wBpp = (WORD)(m_matProcessed.channels() * 8);
 				m_WndImageView->UpdateImageFromArray(
 					m_matProcessed.data, m_matProcessed.cols, m_matProcessed.rows, wBpp, FALSE);
+			}
+		}
+		else // if (static_cast<eViewTarget>(wParam) == eViewTarget::Overlay)
+		{
+			// 결과(m_matOverlaid) 출력 — FindContour 결과 반영
+			if (!m_matOverlaid.empty())
+			{
+				WORD wBpp = (WORD)(m_matOverlaid.channels() * 8);
+				m_WndImageView->UpdateImageFromArray(
+					m_matOverlaid.data, m_matOverlaid.cols, m_matOverlaid.rows, wBpp, FALSE);
 			}
 		}
 		m_WndImageView->InvalidateDirect(FALSE);
@@ -618,15 +642,15 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 
 void CMy01ViewerDlg::AddLog(const wchar_t* str)
 {
-/* 초 단위 */
-	// 1. 현재 시간 객체 생성
-	CTime now = CTime::GetCurrentTime();
-
-	// 2. 원하는 포맷으로 문자열 생성
-	// 결과 예: "현재 시간: 2026-04-23 16:21:39"
-	m_strTime.Format(_T("[%s] %s"), 
-		now.Format(_T("%Y-%m-%d %H:%M:%S")), str);
-	m_listLog.InsertString(-1, m_strTime);
+///* 초 단위 */
+//	// 1. 현재 시간 객체 생성
+//	CTime now = CTime::GetCurrentTime();
+//
+//	// 2. 원하는 포맷으로 문자열 생성
+//	// 결과 예: "현재 시간: 2026-04-23 16:21:39"
+//	m_strTime.Format(_T("[%s] %s"), 
+//		now.Format(_T("%Y-%m-%d %H:%M:%S")), str);
+//	m_listLog.InsertString(-1, m_strTime);
 
 /*밀리초 단위*/
 	// 1. 시스템 시간 구조체 선언 및 값 얻기

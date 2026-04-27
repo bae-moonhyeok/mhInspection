@@ -20,12 +20,20 @@ enum class eViewTarget
 	First = 0,
 	Origin = First,
 	Result,
-	Last = Result
+	Overlay,
+	Last = Overlay
 };
 constexpr int operator+(eViewTarget eViewTarget)
 {
 	return static_cast<int>(eViewTarget);
 }
+
+enum class eRetrievalModes
+{
+	First = 0,
+	EXTERNAL = First,
+	Last = EXTERNAL
+};
 
 // DlgVisionTest 대화 상자
 
@@ -54,6 +62,8 @@ public:
 	afx_msg void OnBnClickedRadioStatus(UINT ctrl_id);
 	afx_msg void OnBnClickedBtnKernelSave();
 	afx_msg void OnBnClickedBtnKernelLoad();
+	afx_msg void OnBnClickedCheckKeepImage();
+	afx_msg void OnBnClickedBtnFindContour();
 	virtual BOOL OnInitDialog();
 	afx_msg void OnDestroy();
 
@@ -76,6 +86,9 @@ private:
 	void LoadKernelSettings(LPCTSTR szPath = nullptr);
 	void SaveKernelSettings(LPCTSTR szPath = nullptr);
 
+	// 
+	void mhFindContour(const cv::Mat& src, cv::Mat& dst, eRetrievalModes retrievalModes);
+
 public:
 	void InitProcessedImage(const BYTE* pSrc, int width, int height, int channel);
 	void CleanProcessedImage();
@@ -83,9 +96,18 @@ public:
 
 	// 부모가 소유하는 처리 대상 이미지(m_matProcessed) 의 참조를 전달받는다.
 	void SetProcessedMatRef(cv::Mat* pMat) { m_refMatProcessed = pMat; }
+	// 부모가 소유하는 오버레이 이미지(m_matOverlaid) 의 참조를 전달받는다.
+	void SetOverlayedMatRef(cv::Mat* pMat) { m_refMatOverlaid = pMat; }
 	void SetImageBuffer(const BYTE& pSrc);
 	void SetImageBuffer(const cv::Mat& mat);
 	eViewTarget GetViewTarget() { return m_ViewTarget; };
+
+	// ------------------------------------------------------------------
+	// 부모 대화상자(IDC_LIST_LOG) 로깅 인터페이스
+	// ------------------------------------------------------------------
+	// 자식에서는 부모의 내부 구현을 알 필요가 없도록 WM_APPEND_LOG 메시지로
+	// 전달한다. 문자열은 SendMessage 동기 호출 동안 유효해야 한다.
+	void LogToParent(LPCTSTR szMsg);
 
 private:
 	SImageProcess sImageProcess = {};
@@ -94,6 +116,7 @@ private:
 
 	BYTE* m_ImageBuffer = nullptr;
 	cv::Mat* m_refMatProcessed = nullptr;
+	cv::Mat* m_refMatOverlaid = nullptr;
 
 	// 커널 입력용 9개 EditBox (행 우선: [0..2]=1행, [3..5]=2행, [6..8]=3행)
 	CEdit m_edKernel[9];
@@ -101,13 +124,4 @@ private:
 	// 커널 Save / Load 버튼 — CreateKernelUI() 에서 3x3 그리드 하단에 동적 생성
 	CButton m_btnKernelSave;
 	CButton m_btnKernelLoad;
-
-	// ------------------------------------------------------------------
-	// 부모 대화상자(IDC_LIST_LOG) 로깅 인터페이스
-	// ------------------------------------------------------------------
-	// 자식에서는 부모의 내부 구현을 알 필요가 없도록 WM_APPEND_LOG 메시지로
-	// 전달한다. 문자열은 SendMessage 동기 호출 동안 유효해야 한다.
-public:
-	void LogToParent(LPCTSTR szMsg);
-	afx_msg void OnBnClickedCheckKeepImage();
 };
