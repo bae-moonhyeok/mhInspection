@@ -82,7 +82,9 @@ private:
 	void SaveKernelSettings(LPCTSTR szPath = nullptr);
 
 	// 
-	void mhFindContour(const cv::Mat& src, cv::Mat& dst, eRetrievalModes retrievalModes);
+	void mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
+	void mhFindContour2(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
+	void mhFindContour01(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
 
 public:
 
