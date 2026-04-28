@@ -4,16 +4,13 @@
 #include "ImageViewEx.h"
 #include "opencv2/core.hpp"
 
+#include "PerformanceTest.h"
+
 #define WM_CLOSE_VISION_TEST_DLG	(WM_USER + 100)
 #define WM_UPDATE_VIEW				(WM_USER + 101)
 // 부모 대화상자의 IDC_LIST_LOG 에 로그를 추가하도록 요청한다.
 // LPARAM: LPCTSTR 문자열 포인터(호출자가 수명 보장) — SendMessage 로 동기 처리.
 #define WM_APPEND_LOG				(WM_USER + 102)
-
-struct SImageProcess
-{
-	
-};
 
 enum class eViewTarget
 {
@@ -88,9 +85,6 @@ private:
 	void mhFindContour(const cv::Mat& src, cv::Mat& dst, eRetrievalModes retrievalModes);
 
 public:
-	void InitProcessedImage(const BYTE* pSrc, int width, int height, int channel);
-	void CleanProcessedImage();
-	void ResetProcessedImage(const BYTE* pSrc, int width, int height, int channels);
 
 	// 부모가 소유하는 처리 대상 이미지(m_matProcessed) 의 참조를 전달받는다.
 	void SetProcessedMatRef(cv::Mat* pMat) { m_refMatProcessed = pMat; }
@@ -108,7 +102,6 @@ public:
 	void LogToParent(LPCTSTR szMsg);
 
 private:
-	SImageProcess sImageProcess = {};
 	eViewTarget m_ViewTarget = eViewTarget::Origin;
 	CRect m_rcView;
 

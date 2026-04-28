@@ -722,8 +722,6 @@ void DlgVisionTest::LogToParent(LPCTSTR szMsg)
 void DlgVisionTest::OnDestroy()
 {
 	CDialogEx::OnDestroy();
-
-	
 }
 
 void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
@@ -921,8 +919,10 @@ void DlgVisionTest::OnBnClickedBtnFindContour()
 		return;
 	}
 
+	PerformanceTest timer;
 	// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
 	mhFindContour(*m_refMatProcessed, *m_refMatOverlaid, eRetrievalModes::EXTERNAL);
+	double elapsedTime = timer.GetElapsedMilliseconds();
 
 	// 영상처리 직후 오버레이(Overlay)로 뷰 전환 — 라디오 체크 상태도 함께 갱신한다.
 	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, IDC_RADIO_OVERLAY);
@@ -930,8 +930,6 @@ void DlgVisionTest::OnBnClickedBtnFindContour()
 	UpdateViewer();
 
 	CString log, tmp;
-	log = _T("[Process] Find Contour applied: [");
-
-	log += _T("]");
+	log.Format(_T("[Process] Find Contour applied: [Total: %.3lfms]"), elapsedTime);
 	LogToParent(log);
 }
