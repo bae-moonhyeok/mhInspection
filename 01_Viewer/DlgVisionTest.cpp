@@ -517,7 +517,7 @@ void DlgVisionTest::CreateKernelUI()
 	ScreenToClient(&rcAnchor);
 
 	// 각 셀은 정사각형에 가깝도록 앵커 영역 내에서 중앙 배치
-	const int cellSize = 80;     // 한 칸 크기(px)
+	const int cellSize = 40;     // 한 칸 크기(px)
 	const int gap      = 6;      // 칸 사이 간격(px)
 	const int gridW    = cellSize * 3 + gap * 2;
 	const int gridH    = cellSize * 3 + gap * 2;
@@ -554,12 +554,12 @@ void DlgVisionTest::CreateKernelUI()
 	CRect rcSave(x0,              btnY, x0 + btnW,          btnY + btnH);
 	CRect rcLoad(x0 + btnW + gap, btnY, x0 + gridW,         btnY + btnH);
 
-	m_btnKernelSave.Create(_T("Save Kernel..."),
+	m_btnKernelSave.Create(_T("Save"),
 		WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
 		rcSave, this, IDC_BTN_KERNEL_SAVE);
 	m_btnKernelSave.SetFont(pFont);
 
-	m_btnKernelLoad.Create(_T("Load Kernel..."),
+	m_btnKernelLoad.Create(_T("Load"),
 		WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
 		rcLoad, this, IDC_BTN_KERNEL_LOAD);
 	m_btnKernelLoad.SetFont(pFont);
@@ -787,7 +787,7 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 			mhContours.push_back(CPoint(currX, y));
 
 			PBYTE r = imageDst + (y * Width + currX) * Channels + 2;
-			*r = (BYTE)0xf0;
+			*r = (BYTE)0xff;
 
 			CString strLog;
 			strLog.Format(L"contour L->R Info : (%4d,%4d)",
@@ -820,8 +820,8 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 			int currX = binary_limit + 5 - y * Width - (PBYTE)matBinary.data;
 			mhContours.push_back(CPoint(currX, y));
 
-			UINT r = (UINT)imageDst + (y * Width + currX) * Channels + 2;
-			r = 0xf0 | (0xf0 >> 8) | (0x00 >> 16);
+			PBYTE r = (PBYTE)imageDst + (y * Width + currX) * Channels + 2;
+			*r = 0xf0;
 
 			CString strLog;
 			strLog.Format(L"contour R->L Info : (%4d,%4d)",
@@ -861,7 +861,7 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 			mhContours.push_back(CPoint(x, currY));
 
 			PBYTE g = imageDst + (currY * Width + x) * Channels + 1;
-			*g = (BYTE)0xff;
+			*g = (BYTE)0xf0;
 
 			CString strLog;
 			strLog.Format(L"contour Top->Btm Info : (%4d,%4d)",
@@ -895,9 +895,8 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 		{
 			mhContours.push_back(CPoint(x, currY));
 
-			PBYTE b = imageDst + (currY * Width + x) * Channels;
-			*b = 255; // 0xff
-			*(b + 1) = 128; // 0xf0
+			PBYTE g = imageDst + (currY * Width + x) * Channels + 1;
+			*g = (BYTE)0xf0;
 
 			CString strLog;
 			strLog.Format(L"contour Btm->Top Info : (%4d,%4d)",

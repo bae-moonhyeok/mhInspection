@@ -61,10 +61,10 @@ void CMy01ViewerDlg::UserInit()
 	pWnd->SetWindowPos(NULL, margin_cx, caption_cy + margin_cy, view_cx, view_cy, SWP_NONE);
 
 	pWnd = GetDlgItem(IDC_BTN_DLG);
-	pWnd->SetWindowPos(NULL, monitor_cx - margin_cx - 120 - 14, -taskbar_cy + monitor_cy - margin_cy - 120, 120, 80, SWP_NONE);
+	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5 + (120 + 5) * 2, caption_cy + 2, 120, 80, SWP_NONE);
 
 	pWnd = GetDlgItem(IDC_LIST_LOG);
-	pWnd->SetWindowPos(NULL, monitor_cx - margin_cx - 560 - 14, -taskbar_cy + monitor_cy - margin_cy - 360, 560, 80, SWP_NONE);
+	pWnd->SetWindowPos(NULL, margin_cx + view_cx + 5, caption_cy + 380, 580, 990-396, SWP_NONE);
 
 	// IDC_CHECK_KEEP_IMAGE: 자식 대화상자 이미지 자동 정리를 억제할지 여부
 	// 위치는 IDC_BTN_DLG 버튼 바로 위. 기본값은 해제(unchecked).
@@ -485,6 +485,12 @@ void CMy01ViewerDlg::InitProcessedImage()
 
 void CMy01ViewerDlg::OnBnClickedBtnDlg()
 {
+	if (m_matCopy.empty())
+	{
+		AfxMessageBox(_T("먼저 이미지를 불러오세요."), MB_ICONERROR);
+		return;
+	}
+
 	if (m_DlgVisionTest == nullptr)
 	{
 		// 자식 대화상자 메모리를 할당하고 모달리스(modeless)로 생성한다.

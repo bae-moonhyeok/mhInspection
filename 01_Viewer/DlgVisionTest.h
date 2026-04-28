@@ -88,6 +88,9 @@ private:
 	void mhFindContour(const cv::Mat& src, cv::Mat& dst, eRetrievalModes retrievalModes);
 
 public:
+	void InitProcessedImage(const BYTE* pSrc, int width, int height, int channel);
+	void CleanProcessedImage();
+	void ResetProcessedImage(const BYTE* pSrc, int width, int height, int channels);
 
 	// 부모가 소유하는 처리 대상 이미지(m_matProcessed) 의 참조를 전달받는다.
 	void SetProcessedMatRef(cv::Mat* pMat) { m_refMatProcessed = pMat; }
