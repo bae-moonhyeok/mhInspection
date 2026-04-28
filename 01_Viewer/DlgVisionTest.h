@@ -62,13 +62,11 @@ public:
 	afx_msg void OnBnClickedRadioStatus(UINT ctrl_id);
 	afx_msg void OnBnClickedBtnKernelSave();
 	afx_msg void OnBnClickedBtnKernelLoad();
-	afx_msg void OnBnClickedCheckKeepImage();
 	afx_msg void OnBnClickedBtnFindContour();
 	virtual BOOL OnInitDialog();
 	afx_msg void OnDestroy();
 
 private:
-	void UpdateParameter();
 	void UpdateViewer();
 
 	// 3x3 커널 입력용 UI 를 IDC_STATIC_KERNER3X3 영역 안에 생성한다.
@@ -90,9 +88,6 @@ private:
 	void mhFindContour(const cv::Mat& src, cv::Mat& dst, eRetrievalModes retrievalModes);
 
 public:
-	void InitProcessedImage(const BYTE* pSrc, int width, int height, int channel);
-	void CleanProcessedImage();
-	void ResetProcessedImage(const BYTE* pSrc, int width, int height, int channels);
 
 	// 부모가 소유하는 처리 대상 이미지(m_matProcessed) 의 참조를 전달받는다.
 	void SetProcessedMatRef(cv::Mat* pMat) { m_refMatProcessed = pMat; }

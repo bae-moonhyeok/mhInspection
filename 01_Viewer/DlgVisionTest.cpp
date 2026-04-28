@@ -50,7 +50,6 @@ BEGIN_MESSAGE_MAP(DlgVisionTest, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_KERNEL_LOAD, &DlgVisionTest::OnBnClickedBtnKernelLoad)
 	ON_COMMAND_RANGE(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, &DlgVisionTest::OnBnClickedRadioStatus)
 	ON_WM_DESTROY()
-	ON_BN_CLICKED(IDC_CHECK_KEEP_IMAGE, &DlgVisionTest::OnBnClickedCheckKeepImage)
 	ON_BN_CLICKED(IDC_BTN_FIND_CONTOUR, &DlgVisionTest::OnBnClickedBtnFindContour)
 END_MESSAGE_MAP()
 
@@ -62,11 +61,6 @@ void DlgVisionTest::OnBnClickedCancel() { /*CDialogEx::OnCancel();*/ GetParent()
 void DlgVisionTest::OnBnClickedBtnClose()
 {
 	GetParent()->SendMessage(WM_CLOSE_VISION_TEST_DLG);
-}
-
-void DlgVisionTest::UpdateParameter()
-{
-
 }
 
 cv::Mat DlgVisionTest::BuildKernelFromUI() const
@@ -448,9 +442,6 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 
 void DlgVisionTest::OnBnClickedBtnImageProcess()
 {
-	// UI로부터 Parameter 갱신
-	UpdateParameter();
-
 	// 처리 대상 이미지가 유효한지 확인
 	if (m_refMatProcessed == nullptr || m_refMatProcessed->empty())
 	{
@@ -463,8 +454,6 @@ void DlgVisionTest::OnBnClickedBtnImageProcess()
 	SaveKernelSettings();
 
 	//// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
-	//ApplyConvolution3x3(*m_refMatProcessed, dst, kernel);
-	// 수정한 3x3 컨볼루션 함수 적용.
 	mhApplyConvolution3x3(*m_refMatProcessed, kernel);
 
 	// 영상처리 직후 결과(Result)로 뷰 전환 — 라디오 체크 상태도 함께 갱신한다.
@@ -737,26 +726,6 @@ void DlgVisionTest::OnDestroy()
 	
 }
 
-void DlgVisionTest::InitProcessedImage(const BYTE* pSrc, int width, int height, int channels)
-{
-
-}
-
-void DlgVisionTest::CleanProcessedImage()
-{
-
-}
-
-void DlgVisionTest::ResetProcessedImage(const BYTE* pSrc, int width, int height, int channels)
-{
-
-}
-
-void DlgVisionTest::OnBnClickedCheckKeepImage()
-{
-
-}
-
 void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
 {
 	// 전달된 이미지가 비어있는 경우 중단한다.
@@ -772,94 +741,6 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 	PBYTE image = (PBYTE)matProcessed.data;
 	PBYTE imageDst = (PBYTE)matOverlaid.data;
 
-	//int min_x = Width, max_x = -1, min_y = Height, max_y = -1;
-	//const BYTE threshold = 100;
-	//for (int y = 0; y < Height; y++)
-	//{
-	//	for (int x = 0; x < Width; x++)
-	//	{
-	//		if (image[y * Width + x] < threshold)
-	//		{
-	//			min_x = std::min(min_x, x);
-	//			max_x = std::max(max_x, x);
-	//			min_y = std::min(min_y, y);
-	//			max_y = std::max(max_y, y);
-	//		}
-	//	}
-	//}
-
-	//CV_Assert(Width == matProcessed.step);
-	//cv::Mat matVisited = cv::Mat::zeros(Width, Height, matProcessed.type());
-	//image = (PBYTE)matProcessed.data;
-	//imageDst = (PBYTE)matOverlaid.data;
-	//PBYTE visited = (PBYTE)matVisited.data;
-	//
-	//int pos;
-	//const int dy[] = { -1, -1, -1,  0, 0, 0,  1, 1, 1 };
-	//const int dx[] = { -1,  0,  1, -1, 0, 1, -1, 0, 1 };
-	//
-	//std::vector<std::vector<CPoint>> contours;
-	//
-	//for (int y = 1; y < Height - 1; y++)
-	//{
-	//	for (int x = 1; x < Width - 1; x++)
-	//	{
-	//		pos = y * Width + x;
-	//		if (!image[pos])
-	//			continue;
-	//		if (visited[pos])
-	//			continue;
-	//		if (image[(y - 1) * Width + x])
-	//			continue;
-	//
-	//		std::vector<CPoint> cntr;
-	//		int currX = x, currY = y;
-	//		int dir = 0;
-	//		int startDir = 0;
-	//
-	//		cntr.push_back(CPoint(currX, currY));
-	//		visited[currY * Width + currX] = 1;
-	//
-	//		while (true)
-	//		{
-	//			bool found = false;
-	//			int nx, ny;
-	//			for (; dir < 9; dir++)
-	//			{
-	//				nx = currX + dx[dir];
-	//				ny = currY + dy[dir];
-	//
-	//				// TOBE:
-	//				if (0 > ny * Width + nx || ny * Width + nx > Width * Height)
-	//					continue;
-	//
-	//				if (image[ny * Width + nx])
-	//				{
-	//					currX = nx;
-	//					currY = ny;
-	//					
-	//					if (currX == x && currY == y)
-	//					{
-	//						found = false;
-	//						break;
-	//					}
-	//					
-	//					cntr.push_back(CPoint(currX, currY));
-	//					visited[currY * Width + currX] = 1;
-	//					found = true;
-	//					break;
-	//				}
-	//			}
-	//
-	//			if (!found)
-	//				break;
-	//			if (cntr.size() > (Height - 1) * (Width - 1))
-	//				break;
-	//		}
-	//		if (cntr.size() >= 3) 
-	//			contours.push_back(cntr);
-	//	}
-	//}
 
 	// ^2026-04-27 11:40
 	CV_Assert(Width == matProcessed.step);
@@ -869,6 +750,7 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 	imageDst = (PBYTE)matOverlaid.data;
 	PBYTE binary = (PBYTE)matBinary.data;
 	PBYTE binary_limit = binary + Height * Width;
+
 	// 이진화
 	while (binary < binary_limit)
 	{
@@ -880,7 +762,7 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 	for (int y = 0; y < Height; y++)
 	{
 		/* LEFT -> RIGHT */
-		bool isEnclosed5Pixel = false;
+		bool isEnclosedLeftPixel = false;
 		for (int x = 0; x < Width - 5; x++)
 		{
 			binary = (PBYTE)matBinary.data + y * Width + x;
@@ -895,31 +777,26 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 			}
 			if (!value)
 			{
-				isEnclosed5Pixel = true;
+				isEnclosedLeftPixel = true;
 				break;
 			}
 		}
-
-		if (isEnclosed5Pixel)
+		if (isEnclosedLeftPixel)
 		{
 			int currX = binary_limit - 5 - y * Width - (PBYTE)matBinary.data;
 			mhContours.push_back(CPoint(currX, y));
 
-			//PBYTE b = imageDst + y * Width + currX;
-			PBYTE g = imageDst + (y * Width + currX + 1) * Channels;
-			//PBYTE r = imageDst + y * Width + currX + 2;
-			//PBYTE g = b + 1;
-			//PBYTE r = b + 2;
-			memset(g, 0xffff, sizeof(WORD));
+			PBYTE r = imageDst + (y * Width + currX) * Channels + 2;
+			*r = (BYTE)0xf0;
 
 			CString strLog;
-			strLog.Format(L"contour L->R Info : (%4d,%4d)", 
+			strLog.Format(L"contour L->R Info : (%4d,%4d)",
 				currX, y);
 			LogToParent(strLog);
 		}
-
+		
 		/* RIGHT -> LEFT */
-		isEnclosed5Pixel = false;
+		bool isEnclosed5Pixel = false;
 		for (int x = Width - 1; x >= 5; x--)
 		{
 			binary = (PBYTE)matBinary.data + y * Width + x;
@@ -943,8 +820,8 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 			int currX = binary_limit + 5 - y * Width - (PBYTE)matBinary.data;
 			mhContours.push_back(CPoint(currX, y));
 
-			PBYTE r = imageDst + (y * Width + currX) * Channels + 2;
-			*r = (BYTE)0xff;
+			UINT r = (UINT)imageDst + (y * Width + currX) * Channels + 2;
+			r = 0xf0 | (0xf0 >> 8) | (0x00 >> 16);
 
 			CString strLog;
 			strLog.Format(L"contour R->L Info : (%4d,%4d)",
@@ -953,7 +830,84 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 		}
 	}
 
+	const int offsetLimit = Width * 5;
+	int currY;
+	for (int x = 0; x < Width; x++)
+	{
+		bool isTopEdge = false;
+		for (int y = 0; y < Height - 5; y++)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			BYTE value;
+			if (value = *binary)
+				continue;
+
+			binary_limit = binary + offsetLimit;
+			while (binary < binary_limit)
+			{
+				value |= *binary;
+				binary += Width;
+			}
+			
+			if (!value)
+			{
+				isTopEdge = true;
+				currY = y;
+				break;
+			}
+		}
+		if (isTopEdge)
+		{
+			mhContours.push_back(CPoint(x, currY));
+
+			PBYTE g = imageDst + (currY * Width + x) * Channels + 1;
+			*g = (BYTE)0xff;
+
+			CString strLog;
+			strLog.Format(L"contour Top->Btm Info : (%4d,%4d)",
+				x, currY);
+			LogToParent(strLog);
+		}
+
+		bool isBtmEdge = false;
+		for (int y = Height - 1; y >= 5; y--)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			BYTE value;
+			if (value = *binary)
+				continue;
+
+			binary_limit = binary - offsetLimit;
+			while (binary > binary_limit)
+			{
+				value |= *binary;
+				binary -= Width;
+			}
+
+			if (!value)
+			{
+				isBtmEdge = true;
+				currY = y;
+				break;
+			}
+		}
+		if (isBtmEdge)
+		{
+			mhContours.push_back(CPoint(x, currY));
+
+			PBYTE b = imageDst + (currY * Width + x) * Channels;
+			*b = 255; // 0xff
+			*(b + 1) = 128; // 0xf0
+
+			CString strLog;
+			strLog.Format(L"contour Btm->Top Info : (%4d,%4d)",
+				x, currY);
+			LogToParent(strLog);
+		}
+	}
+
 #pragma endregion IS_COTINUOUS_MEMORY
+
 	CString strLog;
 	strLog.Format(L"contour Size : %4d", mhContours.size());
 	LogToParent(strLog);
