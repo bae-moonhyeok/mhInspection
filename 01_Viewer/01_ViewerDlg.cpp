@@ -632,7 +632,7 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 		}
 		else // if (static_cast<eViewTarget>(wParam) == eViewTarget::Overlay)
 		{
-			// 결과(m_matOverlaid) 출력 — FindContour 결과 반영
+			// 오버레이 (m_matOverlaid) 출력 — FindContour 결과 반영
 			if (!m_matOverlaid.empty())
 			{
 				WORD wBpp = (WORD)(m_matOverlaid.channels() * 8);
@@ -648,17 +648,6 @@ LRESULT CMy01ViewerDlg::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
 
 void CMy01ViewerDlg::AddLog(const wchar_t* str)
 {
-///* 초 단위 */
-//	// 1. 현재 시간 객체 생성
-//	CTime now = CTime::GetCurrentTime();
-//
-//	// 2. 원하는 포맷으로 문자열 생성
-//	// 결과 예: "현재 시간: 2026-04-23 16:21:39"
-//	m_strTime.Format(_T("[%s] %s"), 
-//		now.Format(_T("%Y-%m-%d %H:%M:%S")), str);
-//	m_listLog.InsertString(-1, m_strTime);
-
-/*밀리초 단위*/
 	// 1. 시스템 시간 구조체 선언 및 값 얻기
 	SYSTEMTIME st;
 	GetLocalTime(&st);

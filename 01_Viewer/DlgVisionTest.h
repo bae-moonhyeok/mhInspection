@@ -81,8 +81,12 @@ private:
 	void LoadKernelSettings(LPCTSTR szPath = nullptr);
 	void SaveKernelSettings(LPCTSTR szPath = nullptr);
 
+	// 8UC1 회색조 이미지 외곽선을 검출한다.
+	void mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
+	void mhFindContour01(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
+
 	// 
-	void mhFindContour(const cv::Mat& src, cv::Mat& dst, eRetrievalModes retrievalModes);
+	void jhHistogram(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
 
 public:
 

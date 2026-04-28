@@ -28,7 +28,7 @@ IMPLEMENT_DYNAMIC(DlgVisionTest, CDialogEx)
 DlgVisionTest::DlgVisionTest(CWnd* pParent /*=nullptr*/)
 	: CDialogEx(IDD_DLG_VISION_TEST, pParent)
 {
-	
+
 }
 
 DlgVisionTest::~DlgVisionTest()
@@ -48,7 +48,7 @@ BEGIN_MESSAGE_MAP(DlgVisionTest, CDialogEx)
 	ON_BN_CLICKED(IDC_BTN_IMAGE_PROCESS, &DlgVisionTest::OnBnClickedBtnImageProcess)
 	ON_BN_CLICKED(IDC_BTN_KERNEL_SAVE, &DlgVisionTest::OnBnClickedBtnKernelSave)
 	ON_BN_CLICKED(IDC_BTN_KERNEL_LOAD, &DlgVisionTest::OnBnClickedBtnKernelLoad)
-	ON_COMMAND_RANGE(IDC_RADIO_ORIGIN, IDC_RADIO_RESULT, &DlgVisionTest::OnBnClickedRadioStatus)
+	ON_COMMAND_RANGE(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, &DlgVisionTest::OnBnClickedRadioStatus)
 	ON_WM_DESTROY()
 	ON_BN_CLICKED(IDC_BTN_FIND_CONTOUR, &DlgVisionTest::OnBnClickedBtnFindContour)
 END_MESSAGE_MAP()
@@ -95,7 +95,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 {
 	// src/kernel 을 cv::Mat 로 획득하여 Mat::at<> 로만 접근한다.
 	cv::Mat matSrc = src.getMat();
-	cv::Mat matK   = kernel.getMat();
+	cv::Mat matK = kernel.getMat();
 	CV_Assert(matK.rows == 3 && matK.cols == 3);
 	CV_Assert(!matSrc.empty() && matSrc.type() == CV_8UC1);
 
@@ -104,7 +104,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	matK.convertTo(matKd, CV_64F);
 
 	const int Height = matSrc.rows;
-	const int Width  = matSrc.cols;
+	const int Width = matSrc.cols;
 
 	// BORDER_REPLICATE 경계 확장
 	cv::Mat matPad;
@@ -175,7 +175,7 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 #pragma endregion PRECISION
 
 	const int Height = src.rows;
-	const int Width  = src.cols;
+	const int Width = src.cols;
 
 	int nVal;
 	int pos = Width;
@@ -184,16 +184,16 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 	// 이미지와 커널의 메모리가 연속되지 않은 경우 중단한다.
 	CV_Assert(src.isContinuous() && kernel.isContinuous());
 
-	PBYTE image        = (PBYTE)src.ptr();
-	PBYTE imageDst     = (PBYTE)dst.ptr();
-	PCHAR pKernelBase  = (PCHAR)kernel.ptr();
+	PBYTE image = (PBYTE)src.ptr();
+	PBYTE imageDst = (PBYTE)dst.ptr();
+	PCHAR pKernelBase = (PCHAR)kernel.ptr();
 
 	const int nOffsetImage[] = { -Width - 1, -Width + 0, -Width + 1,
-                                         -1,        + 0,         +1,
+										 -1,        +0,         +1,
 								 +Width - 1, +Width + 0, +Width + 1,
 	};
 
-	const int*  pOffsetImage;
+	const int* pOffsetImage;
 	const char* pKernel;
 	for (int y = 0 + 1; y < Height - 1; y++) // TOBE: Border
 	{
@@ -202,7 +202,7 @@ void DlgVisionTest::mhApplyConvolution3x3(const cv::Mat& src, const cv::Mat kern
 		{
 			pOffsetImage = nOffsetImage;
 			pKernel = pKernelBase;
-			nVal  = image[pos + *pOffsetImage++] * *pKernel++;
+			nVal = image[pos + *pOffsetImage++] * *pKernel++;
 			nVal += image[pos + *pOffsetImage++] * *pKernel++;
 			nVal += image[pos + *pOffsetImage++] * *pKernel++;
 			nVal += image[pos + *pOffsetImage++] * *pKernel++;
@@ -241,7 +241,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	//   - 경계:     y=1..Height-2, x=1..Width-2 (테두리 1px 은 원본 복사)
 	// ------------------------------------------------------------------
 	cv::Mat matSrc = src.getMat();
-	cv::Mat matK   = kernel.getMat();
+	cv::Mat matK = kernel.getMat();
 
 	CV_Assert(matK.rows == 3 && matK.cols == 3);
 	CV_Assert(!matSrc.empty() && matSrc.type() == CV_8UC1);
@@ -254,7 +254,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	CV_Assert(matKi.isContinuous());
 
 	const int Height = matSrc.rows;
-	const int Width  = matSrc.cols;
+	const int Width = matSrc.cols;
 
 	// 결과 Mat 준비 — 테두리 1px 은 원본을 그대로 복사하여 검은 띠를 방지.
 	dst.create(Height, Width, matSrc.type());
@@ -263,9 +263,9 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	CV_Assert(matDst.isContinuous());
 
 	// ---------------- 핫 루프용 포인터/오프셋 (참조 베이스) ----------------
-	const BYTE* imageSrc    = matSrc.ptr<BYTE>();      // 읽기 전용 원본
-	BYTE*       imageDst    = matDst.ptr<BYTE>();      // 쓰기 전용 결과
-	const int*  pKernelBase = matKi.ptr<int>();        // CV_32S, 9개 계수 (행 우선)
+	const BYTE* imageSrc = matSrc.ptr<BYTE>();      // 읽기 전용 원본
+	BYTE* imageDst = matDst.ptr<BYTE>();      // 쓰기 전용 결과
+	const int* pKernelBase = matKi.ptr<int>();        // CV_32S, 9개 계수 (행 우선)
 
 	// 9개 상대 오프셋: (-1,-1) (-1,0) (-1,+1)  (0,-1) (0,0) (0,+1)  (+1,-1) (+1,0) (+1,+1)
 	// (참조 코드의 +Width 행 가운데 항목 오타(-Width)를 +Width 로 정정)
@@ -324,7 +324,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 {
 	// 입력 Mat 에서 .data, .step 만 꺼내 순수 C 스타일 포인터 연산으로 처리한다.
 	cv::Mat matSrc = src.getMat();
-	cv::Mat matK   = kernel.getMat();
+	cv::Mat matK = kernel.getMat();
 	CV_Assert(matK.rows == 3 && matK.cols == 3);
 	CV_Assert(!matSrc.empty() && matSrc.type() == CV_8UC1);
 
@@ -337,7 +337,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	};
 
 	const int Height = matSrc.rows;
-	const int Width  = matSrc.cols;
+	const int Width = matSrc.cols;
 
 	// 경계 확장도 수동으로 수행할 수 있으나 OpenCV 의 copyMakeBorder 를 재사용한다.
 	cv::Mat matPad;
@@ -346,24 +346,24 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	dst.create(Height, Width, matSrc.type());
 	cv::Mat matDst = dst.getMat();
 
-	const uchar*  pSrc    = matPad.data;
+	const uchar* pSrc = matPad.data;
 	const size_t  srcStep = matPad.step;    // 바이트 단위 행 간격
-	uchar*        pDst    = matDst.data;
+	uchar* pDst = matDst.data;
 	const size_t  dstStep = matDst.step;
 
 	for (int y = 0; y < Height; ++y)
 	{
-		const uchar* r0 = pSrc + (y)     * srcStep;
+		const uchar* r0 = pSrc + (y)*srcStep;
 		const uchar* r1 = pSrc + (y + 1) * srcStep;
 		const uchar* r2 = pSrc + (y + 2) * srcStep;
-		uchar*       dr = pDst + y       * dstStep;
+		uchar* dr = pDst + y * dstStep;
 
 		for (int x = 0; x < Width; ++x)
 		{
 			const double sum =
-				r0[x]   * k[0] + r0[x+1] * k[1] + r0[x+2] * k[2] +
-				r1[x]   * k[3] + r1[x+1] * k[4] + r1[x+2] * k[5] +
-				r2[x]   * k[6] + r2[x+1] * k[7] + r2[x+2] * k[8];
+				r0[x] * k[0] + r0[x + 1] * k[1] + r0[x + 2] * k[2] +
+				r1[x] * k[3] + r1[x + 1] * k[4] + r1[x + 2] * k[5] +
+				r2[x] * k[6] + r2[x + 1] * k[7] + r2[x + 2] * k[8];
 
 			// saturate: 음수/255 초과를 직접 클램핑
 			int v = static_cast<int>(sum + (sum >= 0 ? 0.5 : -0.5));
@@ -384,7 +384,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	// 실수 계수를 256 배 스케일한 int 로 변환 → UINT/INT 누산기로 컨볼루션.
 	// 부동소수점 없이 정수 연산만 사용 (임베디드/MCU 포팅 시 유용).
 	cv::Mat matSrc = src.getMat();
-	cv::Mat matK   = kernel.getMat();
+	cv::Mat matK = kernel.getMat();
 	CV_Assert(matK.rows == 3 && matK.cols == 3);
 	CV_Assert(!matSrc.empty() && matSrc.type() == CV_8UC1);
 
@@ -401,7 +401,7 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 	}
 
 	const int Height = matSrc.rows;
-	const int Width  = matSrc.cols;
+	const int Width = matSrc.cols;
 
 	cv::Mat matPad;
 	cv::copyMakeBorder(matSrc, matPad, 1, 1, 1, 1, cv::BORDER_REPLICATE);
@@ -414,19 +414,19 @@ void DlgVisionTest::ApplyConvolution3x3(cv::InputArray src, cv::OutputArray dst,
 		const uchar* r0 = matPad.ptr<uchar>(y);
 		const uchar* r1 = matPad.ptr<uchar>(y + 1);
 		const uchar* r2 = matPad.ptr<uchar>(y + 2);
-		uchar*       dr = matDst.ptr<uchar>(y);
+		uchar* dr = matDst.ptr<uchar>(y);
 
 		for (UINT x = 0; x < static_cast<UINT>(Width); ++x)
 		{
 			// INT 누산 (음수 커널 계수도 안전)
 			int acc =
-				static_cast<int>(r0[x])     * kq[0] +
+				static_cast<int>(r0[x]) * kq[0] +
 				static_cast<int>(r0[x + 1]) * kq[1] +
 				static_cast<int>(r0[x + 2]) * kq[2] +
-				static_cast<int>(r1[x])     * kq[3] +
+				static_cast<int>(r1[x]) * kq[3] +
 				static_cast<int>(r1[x + 1]) * kq[4] +
 				static_cast<int>(r1[x + 2]) * kq[5] +
-				static_cast<int>(r2[x])     * kq[6] +
+				static_cast<int>(r2[x]) * kq[6] +
 				static_cast<int>(r2[x + 1]) * kq[7] +
 				static_cast<int>(r2[x + 2]) * kq[8];
 
@@ -502,6 +502,8 @@ BOOL DlgVisionTest::OnInitDialog()
 	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, IDC_RADIO_ORIGIN);
 	m_ViewTarget = eViewTarget::Origin;
 
+	SetWindowPos(NULL, 1000, 570, 0, 0, SWP_NOSIZE);
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// 예외: OCX 속성 페이지는 FALSE를 반환해야 합니다.
 }
@@ -518,12 +520,12 @@ void DlgVisionTest::CreateKernelUI()
 
 	// 각 셀은 정사각형에 가깝도록 앵커 영역 내에서 중앙 배치
 	const int cellSize = 40;     // 한 칸 크기(px)
-	const int gap      = 6;      // 칸 사이 간격(px)
-	const int gridW    = cellSize * 3 + gap * 2;
-	const int gridH    = cellSize * 3 + gap * 2;
+	const int gap = 6;      // 칸 사이 간격(px)
+	const int gridW = cellSize * 3 + gap * 2;
+	const int gridH = cellSize * 3 + gap * 2;
 
-	const int x0 = rcAnchor.left + (rcAnchor.Width()  - gridW) / 2;
-	const int y0 = rcAnchor.top  + (rcAnchor.Height() - gridH) / 2;
+	const int x0 = rcAnchor.left + (rcAnchor.Width() - gridW) / 2;
+	const int y0 = rcAnchor.top + (rcAnchor.Height() - gridH) / 2;
 
 	CFont* pFont = GetFont();
 	for (int i = 0; i < 9; ++i)
@@ -551,8 +553,8 @@ void DlgVisionTest::CreateKernelUI()
 	const int btnH = 28;
 	const int btnY = y0 + gridH + 10;
 
-	CRect rcSave(x0,              btnY, x0 + btnW,          btnY + btnH);
-	CRect rcLoad(x0 + btnW + gap, btnY, x0 + gridW,         btnY + btnH);
+	CRect rcSave(x0, btnY, x0 + btnW, btnY + btnH);
+	CRect rcLoad(x0 + btnW + gap, btnY, x0 + gridW, btnY + btnH);
 
 	m_btnKernelSave.Create(_T("Save"),
 		WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_PUSHBUTTON,
@@ -724,7 +726,320 @@ void DlgVisionTest::OnDestroy()
 	CDialogEx::OnDestroy();
 }
 
+void DlgVisionTest::jhHistogram(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
+{
+	// 전달된 이미지가 비어있는 경우 중단한다.
+	if (matProcessed.empty())
+	{
+		AfxMessageBox(_T("matProcessed is empty."));
+		return;
+	}
+
+	const int Height = matProcessed.rows;
+	const int Width = matProcessed.cols;
+
+	PBYTE image = (PBYTE)matProcessed.data;
+	PBYTE imageDst = (PBYTE)matOverlaid.data;
+
+	int nValue1, nValue2, minValue, minPos, maxValue, maxPos;
+
+	int EdgeX[4000];
+	int EdgeY[3000];
+	int EdgeX2[4000];
+	int EdgeY2[3000];
+
+	memset(EdgeX, 0, Width  * sizeof(int));
+	memset(EdgeY, 0, Height * sizeof(int));
+	memset(EdgeX2, 0, Width  * sizeof(int));
+	memset(EdgeY2, 0, Height * sizeof(int));
+
+	for (int y = 10; y < Height - 10; y++)
+	{
+		maxValue = 0;
+		minValue = 0;
+
+		for (int x = 10; x < Width - 10; x++)
+		{
+			nValue1 = (image[y * Width + x - 1] + image[y * Width + x - 2] + image[y * Width + x - 3])
+				- (image[y * Width + x + 1] + image[y * Width + x + 2] + image[y * Width + x + 3]);
+
+			if (maxValue < nValue1)
+			{
+				maxValue = nValue1;
+				maxPos = x;
+			}
+
+			if (minValue > nValue1)
+			{
+				minValue = nValue1;
+				minPos = x;
+			}
+		}
+
+		if (maxValue > 50)
+		{
+			EdgeY[y] = maxPos;
+			matOverlaid.data[(y * Width + maxPos) * 3 + 0] = (BYTE)0;
+			matOverlaid.data[(y * Width + maxPos) * 3 + 1] = (BYTE)0;
+			matOverlaid.data[(y * Width + maxPos) * 3 + 2] = (BYTE)255;
+		}
+
+		if (minValue < -50)
+		{
+			EdgeY2[y] = minPos;
+			matOverlaid.data[(y * Width + minPos) * 3 + 0] = (BYTE)0;
+			matOverlaid.data[(y * Width + minPos) * 3 + 1] = (BYTE)255;
+			matOverlaid.data[(y * Width + minPos) * 3 + 2] = (BYTE)0;
+		}
+	}
+
+	for (int x = 10; x < Width - 10; x++)
+	{
+		maxValue = 0;
+		minValue = 0;
+
+		for (int y = 10; y < Height - 10; y++)
+		{
+			nValue1 = (image[(y - 1) * Width + x] + image[(y - 2) * Width + x] + image[(y - 3) * Width + x])
+				- (image[(y + 1) * Width + x] + image[(y + 2) * Width + x] + image[(y + 3) * Width + x]);
+
+			if (maxValue < nValue1)
+			{
+				maxValue = nValue1;
+				maxPos = y;
+			}
+
+			if (minValue > nValue1)
+			{
+				minValue = nValue1;
+				minPos = y;
+			}
+		}
+
+		if (maxValue > 50)
+		{
+			EdgeX[x] = maxPos;
+			matOverlaid.data[(maxPos * Width + x) * 3 + 0] = (BYTE)0;
+			matOverlaid.data[(maxPos * Width + x) * 3 + 1] = (BYTE)128;
+			matOverlaid.data[(maxPos * Width + x) * 3 + 2] = (BYTE)255;
+		}
+
+		if (minValue < -50)
+		{
+			EdgeX2[x] = minPos;
+			matOverlaid.data[(minPos * Width + x) * 3 + 0] = (BYTE)255;
+			matOverlaid.data[(minPos * Width + x) * 3 + 1] = (BYTE)0;
+			matOverlaid.data[(minPos * Width + x) * 3 + 2] = (BYTE)0;
+		}
+	}
+
+
+	int nHistoX[4000] = { 0, };
+	int nHistoY[3000] = { 0, };
+
+	int nHistoX2[4000] = { 0, };
+	int nHistoY2[3000] = { 0, };
+
+	for (int x = 0; x < Width; x++)
+	{
+		nHistoX[EdgeX[x]]++;
+		nHistoX2[EdgeX2[x]]++;
+	}
+
+	minValue = 0;
+	maxValue = 0;
+	for (int x = 10; x < Width-10; x++)
+	{
+		nValue1 = nValue2 = 0;
+
+		for (int i = -4; i <= 4; i++)
+			nValue1 += nHistoX[x + i];
+
+		for (int i = -4; i <= 4; i++)
+			nValue2 += nHistoX2[x + i];
+
+		if (maxValue < nValue1)
+		{
+			maxPos = x;
+			maxValue = nValue1;
+		}
+
+		if (minValue < nValue2)
+		{
+			minPos = x;
+			minValue = nValue2;
+		}
+
+	}
+
+	cv::line(matOverlaid, cv::Point(0, maxPos), cv::Point(4000, maxPos), cv::Scalar(0, 128, 255), 5);
+	cv::line(matOverlaid, cv::Point(0, minPos), cv::Point(4000, minPos), cv::Scalar(0, 255, 0), 5);
+}
+
 void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
+{
+	// 전달된 이미지가 비어있는 경우 중단한다.
+	if (matProcessed.empty())
+	{
+		AfxMessageBox(_T("matProcessed is empty."));
+		return;
+	}
+
+	//cv::cvtColor(matProcessed, matProcessed, CV_8UC3);
+
+
+	const int Height = matProcessed.rows;
+	const int Width = matProcessed.cols;
+
+
+	PBYTE image = (PBYTE)matProcessed.data;
+	PBYTE imageDst = (PBYTE)matOverlaid.data;
+
+
+	int nValue1, nValue2, minValue, minPos, maxValue, maxPos;
+
+	int EdgeX[4000];
+	int EdgeY[3000];
+	int EdgeX2[4000];
+	int EdgeY2[3000];
+
+	memset(EdgeX, 0, Width * sizeof(int));
+	memset(EdgeX2, 0, Width * sizeof(int));
+	memset(EdgeY, 0, Height * sizeof(int));
+	memset(EdgeY2, 0, Height * sizeof(int));
+
+	for (int y = 10; y < Height - 10; y++)
+	{
+		maxValue = 0;
+		minValue = 0;
+
+		for (int x = 10; x < Width - 10; x++)
+		{
+			nValue1 = (image[y * Width + x - 1] + image[y * Width + x - 2] + image[y * Width + x - 3])
+				- (image[y * Width + x + 1] + image[y * Width + x + 2] + image[y * Width + x + 3]);
+
+			if (maxValue < nValue1)
+			{
+				maxValue = nValue1;
+				maxPos = x;
+			}
+
+			if (minValue > nValue1)
+			{
+				minValue = nValue1;
+				minPos = x;
+			}
+		}
+
+		if (maxValue > 50)
+		{
+			EdgeY[y] = maxPos;
+			matOverlaid.data[(y * Width + maxPos) * 3 + 0] = (BYTE)0;
+			matOverlaid.data[(y * Width + maxPos) * 3 + 1] = (BYTE)0;
+			matOverlaid.data[(y * Width + maxPos) * 3 + 2] = (BYTE)255;
+		}
+
+		if (minValue < -50)
+		{
+			EdgeY2[y] = minPos;
+			matOverlaid.data[(y * Width + minPos) * 3 + 0] = (BYTE)0;
+			matOverlaid.data[(y * Width + minPos) * 3 + 1] = (BYTE)255;
+			matOverlaid.data[(y * Width + minPos) * 3 + 2] = (BYTE)0;
+		}
+	}
+
+
+
+	for (int x = 10; x < Width - 10; x++)
+	{
+		maxValue = 0;
+		minValue = 0;
+
+		for (int y = 10; y < Height - 10; y++)
+		{
+			nValue1 = (image[(y - 1) * Width + x] + image[(y - 2) * Width + x] + image[(y - 3) * Width + x])
+				- (image[(y + 1) * Width + x] + image[(y + 2) * Width + x] + image[(y + 3) * Width + x]);
+
+			if (maxValue < nValue1)
+			{
+				maxValue = nValue1;
+				maxPos = y;
+			}
+
+			if (minValue > nValue1)
+			{
+				minValue = nValue1;
+				minPos = y;
+			}
+		}
+
+		if (maxValue > 50)
+		{
+			EdgeX[x] = maxPos;
+			matOverlaid.data[(maxPos * Width + x) * 3 + 0] = (BYTE)0;
+			matOverlaid.data[(maxPos * Width + x) * 3 + 1] = (BYTE)128;
+			matOverlaid.data[(maxPos * Width + x) * 3 + 2] = (BYTE)255;
+		}
+
+		if (minValue < -50)
+		{
+			EdgeX2[x] = minPos;
+			matOverlaid.data[(minPos * Width + x) * 3 + 0] = (BYTE)255;
+			matOverlaid.data[(minPos * Width + x) * 3 + 1] = (BYTE)0;
+			matOverlaid.data[(minPos * Width + x) * 3 + 2] = (BYTE)0;
+		}
+	}
+
+
+	int nHistoX[4000] = { 0, };
+	int nHistoY[3000] = { 0, };
+
+	int nHistoX2[4000] = { 0, };
+	int nHistoY2[3000] = { 0, };
+
+	for (int x = 0; x < Width; x++)
+	{
+		nHistoX[EdgeX[x]]++;
+		nHistoX2[EdgeX2[x]]++;
+	}
+
+	minValue = 0;
+	maxValue = 0;
+	for (int x = 10; x < Width-10; x++)
+	{
+		nValue1 = nValue2 = 0;
+
+		for (int i = -4; i <= 4; i++)
+			nValue1 += nHistoX[x + i];
+
+		for (int i = -4; i <= 4; i++)
+			nValue2 += nHistoX2[x + i];
+
+		if (maxValue < nValue1)
+		{
+			maxPos = x;
+			maxValue = nValue1;
+		}
+
+		if (minValue < nValue2)
+		{
+			minPos = x;
+			minValue = nValue2;
+		}
+
+	}
+
+
+	cv::line(matOverlaid, cv::Point(0, maxPos), cv::Point(4000, maxPos), cv::Scalar(0, 128, 255), 5);
+	cv::line(matOverlaid, cv::Point(0, minPos), cv::Point(4000, minPos), cv::Scalar(0, 255, 0), 5);
+
+
+	//CString strLog;
+	//strLog.Format(L"contour Size : %4d", mhContours.size());
+	//LogToParent(strLog);
+}
+
+void DlgVisionTest::mhFindContour2(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
 {
 	// 전달된 이미지가 비어있는 경우 중단한다.
 	CV_Assert(!matProcessed.empty());
@@ -754,8 +1069,7 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 	{
 		*binary++ = *image++ > 100 ? 255 : 0;
 	}
-
-	std::vector<CPoint> mhContours;
+	std::vector<CPoint> mhContours(1500);
 	int Channels = matOverlaid.channels();
 	for (int y = 0; y < Height; y++)
 	{
@@ -792,7 +1106,7 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 				currX, y);
 			LogToParent(strLog);
 		}
-		
+
 		/* RIGHT -> LEFT */
 		bool isEnclosed5Pixel = false;
 		for (int x = Width - 1; x >= 5; x--)
@@ -846,7 +1160,191 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 				value |= *binary;
 				binary += Width;
 			}
-			
+
+			if (!value)
+			{
+				isTopEdge = true;
+				currY = y;
+				break;
+			}
+		}
+		if (isTopEdge)
+		{
+			mhContours.push_back(CPoint(x, currY));
+
+			PBYTE g = imageDst + (currY * Width + x) * Channels + 1;
+			*g = (BYTE)0xf0;
+
+			CString strLog;
+			strLog.Format(L"contour Top->Btm Info : (%4d,%4d)",
+				x, currY);
+			LogToParent(strLog);
+		}
+
+		bool isBtmEdge = false;
+		for (int y = Height - 1; y >= 5; y--)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			BYTE value;
+			if (value = *binary)
+				continue;
+
+			binary_limit = binary - offsetLimit;
+			while (binary > binary_limit)
+			{
+				value |= *binary;
+				binary -= Width;
+			}
+
+			if (!value)
+			{
+				isBtmEdge = true;
+				currY = y;
+				break;
+			}
+		}
+		if (isBtmEdge)
+		{
+			mhContours.push_back(CPoint(x, currY));
+
+			PBYTE g = imageDst + (currY * Width + x) * Channels + 1;
+			*g = (BYTE)0xf0;
+
+			CString strLog;
+			strLog.Format(L"contour Btm->Top Info : (%4d,%4d)",
+				x, currY);
+			LogToParent(strLog);
+		}
+	}
+
+#pragma endregion IS_COTINUOUS_MEMORY
+
+	CString strLog;
+	strLog.Format(L"contour Size : %4d", mhContours.size());
+	LogToParent(strLog);
+}
+
+void DlgVisionTest::mhFindContour01(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
+{
+	// 전달된 이미지가 비어있는 경우 중단한다.
+	CV_Assert(!matProcessed.empty());
+
+	const int Height = matProcessed.rows;
+	const int Width = matProcessed.cols;
+
+#pragma region IS_COTINUOUS_MEMORY
+	// 이미지 메모리가 연속되지 않은 경우 중단한다.
+	CV_Assert(matProcessed.isContinuous() && matOverlaid.isContinuous());
+
+	PBYTE image = (PBYTE)matProcessed.data;
+	PBYTE imageDst = (PBYTE)matOverlaid.data;
+
+	CV_Assert(Width == matProcessed.step);
+
+	cv::Mat matBinary = cv::Mat::zeros(Height, Width, matProcessed.type());
+	image = (PBYTE)matProcessed.data;
+	imageDst = (PBYTE)matOverlaid.data;
+	PBYTE binary = (PBYTE)matBinary.data;
+	PBYTE binary_limit = binary + Height * Width;
+
+	// 이진화
+	while (binary < binary_limit)
+	{
+		*binary++ = *image++ > 100 ? 255 : 0;
+	}
+
+	std::vector<CPoint> mhContours;
+	int Channels = matOverlaid.channels();
+	for (int y = 0; y < Height; y++)
+	{
+		/* LEFT -> RIGHT */
+		bool isEnclosedLeftPixel = false;
+		for (int x = 0; x < Width - 5; x++)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			if (*binary)
+				continue;
+
+			binary_limit = binary + 5;
+			BYTE value = *binary++;
+			while (binary < binary_limit)
+			{
+				value |= *binary++;
+			}
+			if (!value)
+			{
+				isEnclosedLeftPixel = true;
+				break;
+			}
+		}
+		if (isEnclosedLeftPixel)
+		{
+			int currX = binary_limit - 5 - y * Width - (PBYTE)matBinary.data;
+			mhContours.push_back(CPoint(currX, y));
+
+			PBYTE r = imageDst + (y * Width + currX) * Channels + 2;
+			*r = (BYTE)0xff;
+
+			CString strLog;
+			strLog.Format(L"contour L->R Info : (%4d,%4d)",
+				currX, y);
+			LogToParent(strLog);
+		}
+
+		/* RIGHT -> LEFT */
+		bool isEnclosed5Pixel = false;
+		for (int x = Width - 1; x >= 5; x--)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			if (*binary)
+				continue;
+
+			binary_limit = binary - 5;
+			BYTE value = *binary--;
+			while (binary < binary_limit)
+			{
+				value |= *binary--;
+			}
+			if (!value)
+			{
+				isEnclosed5Pixel = true;
+				break;
+			}
+		}
+		if (isEnclosed5Pixel)
+		{
+			int currX = binary_limit + 5 - y * Width - (PBYTE)matBinary.data;
+			mhContours.push_back(CPoint(currX, y));
+
+			PBYTE r = (PBYTE)imageDst + (y * Width + currX) * Channels + 2;
+			*r = 0xf0;
+
+			CString strLog;
+			strLog.Format(L"contour R->L Info : (%4d,%4d)",
+				currX, y);
+			LogToParent(strLog);
+		}
+	}
+
+	const int offsetLimit = Width * 5;
+	int currY;
+	for (int x = 0; x < Width; x++)
+	{
+		bool isTopEdge = false;
+		for (int y = 0; y < Height - 5; y++)
+		{
+			binary = (PBYTE)matBinary.data + y * Width + x;
+			BYTE value;
+			if (value = *binary)
+				continue;
+
+			binary_limit = binary + offsetLimit;
+			while (binary < binary_limit)
+			{
+				value |= *binary;
+				binary += Width;
+			}
+
 			if (!value)
 			{
 				isTopEdge = true;
