@@ -8,6 +8,7 @@
 #define IDC_STATIC_VIEW                 1000
 #define IDC_BTN_SAVE                    1001
 #define IDC_BTN_LOAD                    1002
+#define IDC_LIST_LOG                    1003
 #define IDC_EDIT_RAW_WIDTH              1010
 #define IDC_EDIT_RAW_HEIGHT             1011
 #define IDC_EDIT_RAW_BPP                1012
@@ -25,14 +26,14 @@
 #define IDC_RADIO_RESULT                1032
 #define IDC_RADIO_OVERLAY               1033
 #define IDC_BTN_IMAGE_PROCESS           1034
-#define IDC_BTN_CLOSE                   1035
-#define IDC_BTN_FIND_CONTOUR            1036
-#define IDC_CHECK_KEEP_IMAGE            1037
-#define IDC_LIST_LOG                    1038
-#define IDC_STATIC_KERNER3X3            1040
-#define IDC_BTN_CLONE_ORIGIN            1050
-#define IDC_BTN_KERNEL_SAVE             1051
-#define IDC_BTN_KERNEL_LOAD             1052
+#define IDC_BTN_FIND_CONTOUR            1035
+#define IDC_BTN_HISTOGRAM               1036
+#define IDC_BTN_CLOSE                   1037
+#define IDC_CHECK_KEEP_IMAGE            1038
+#define IDC_BTN_CLONE_ORIGIN            1040
+#define IDC_STATIC_KERNER3X3            1041
+#define IDC_BTN_KERNEL_SAVE             1050
+#define IDC_BTN_KERNEL_LOAD             1051
 
 // Next default values for new objects
 // 

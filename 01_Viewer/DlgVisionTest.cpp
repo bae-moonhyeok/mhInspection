@@ -51,6 +51,7 @@ BEGIN_MESSAGE_MAP(DlgVisionTest, CDialogEx)
 	ON_COMMAND_RANGE(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, &DlgVisionTest::OnBnClickedRadioStatus)
 	ON_WM_DESTROY()
 	ON_BN_CLICKED(IDC_BTN_FIND_CONTOUR, &DlgVisionTest::OnBnClickedBtnFindContour)
+	ON_BN_CLICKED(IDC_BTN_HISTOGRAM, &DlgVisionTest::OnBnClickedBtnHistogram)
 END_MESSAGE_MAP()
 
 // DlgVisionTest 메시지 처리기
@@ -726,6 +727,98 @@ void DlgVisionTest::OnDestroy()
 	CDialogEx::OnDestroy();
 }
 
+void DlgVisionTest::mhHistogram(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
+{
+	if (matProcessed.empty())
+	{
+		AfxMessageBox(_T("matProcessed is empty."));
+		return;
+	}
+	
+	const int Height = matProcessed.rows;
+	const int Width  = matProcessed.cols;
+
+	PBYTE image    = (PBYTE)matProcessed.data;
+	PBYTE imageDst = (PBYTE)matOverlaid.data;
+
+	int maxDiffXAtRow[4000] = { 0, };
+	int minDiffXAtRow[4000] = { 0, };
+
+	int gradX;
+	int y_pos, pos;
+	int maxValue, minValue, maxPos, minPos;
+	for (int y = 10; y < Height - 10; y++)
+	{
+		y_pos = y * Width;
+		maxValue = 0;
+		minValue = 0;
+		for (int x = 10; x < Width - 10; x++)
+		{
+			pos = y_pos + x;
+			gradX = (image[pos - 4] + image[pos - 3] + image[pos - 2] + image[pos - 1]) -
+					(image[pos + 4] + image[pos + 3] + image[pos + 2] + image[pos + 1]);
+
+			if (maxValue < gradX)
+			{
+				maxValue = gradX;
+				maxPos = x;
+			}
+
+			if (minValue > gradX)
+			{
+				minValue = gradX;
+				minPos = x;
+			}
+		}
+
+		if (maxValue > 50)
+		{
+			maxDiffXAtRow[y] = maxPos;
+		}
+
+		if (minValue < -50)
+		{
+			minDiffXAtRow[y] = minPos;
+		}
+	}
+
+	int HistoMaxX[4000] = { 0, };
+	int HistoMinX[4000] = { 0, };
+	
+	for (int x = 0; x < Width; x++)
+	{
+		HistoMaxX[maxDiffXAtRow[x]]++;
+		HistoMinX[minDiffXAtRow[x]]++;
+	}
+
+	maxValue = minValue = 0;
+	int risingPos, fallingPos;
+	for (int x = 10; x < Width - 10; x++)
+	{
+		int sumMaxX = 0, sumMinX = 0;
+		for (int i = -4; i <= 4; i++)
+		{
+			sumMaxX += HistoMaxX[x + i];
+			sumMinX += HistoMinX[x + i];
+		}
+		
+		if (maxValue < sumMaxX)
+		{
+			maxValue = sumMaxX;
+			risingPos = x;
+		}
+		
+		if (minValue < sumMinX)
+		{
+			minValue = sumMinX;
+			fallingPos = x;
+		}
+	}
+
+	cv::line(matOverlaid, cv::Point(risingPos , 0), cv::Point(risingPos , Height), cv::Scalar(0,   0, 255), 4);
+	cv::line(matOverlaid, cv::Point(fallingPos, 0), cv::Point(fallingPos, Height), cv::Scalar(0,   0, 255), 4);
+}
+
 void DlgVisionTest::jhHistogram(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
 {
 	// 전달된 이미지가 비어있는 경우 중단한다.
@@ -734,159 +827,6 @@ void DlgVisionTest::jhHistogram(const cv::Mat& matProcessed, cv::Mat& matOverlai
 		AfxMessageBox(_T("matProcessed is empty."));
 		return;
 	}
-
-	const int Height = matProcessed.rows;
-	const int Width = matProcessed.cols;
-
-	PBYTE image = (PBYTE)matProcessed.data;
-	PBYTE imageDst = (PBYTE)matOverlaid.data;
-
-	int nValue1, nValue2, minValue, minPos, maxValue, maxPos;
-
-	int EdgeX[4000];
-	int EdgeY[3000];
-	int EdgeX2[4000];
-	int EdgeY2[3000];
-
-	memset(EdgeX, 0, Width  * sizeof(int));
-	memset(EdgeY, 0, Height * sizeof(int));
-	memset(EdgeX2, 0, Width  * sizeof(int));
-	memset(EdgeY2, 0, Height * sizeof(int));
-
-	for (int y = 10; y < Height - 10; y++)
-	{
-		maxValue = 0;
-		minValue = 0;
-
-		for (int x = 10; x < Width - 10; x++)
-		{
-			nValue1 = (image[y * Width + x - 1] + image[y * Width + x - 2] + image[y * Width + x - 3])
-				- (image[y * Width + x + 1] + image[y * Width + x + 2] + image[y * Width + x + 3]);
-
-			if (maxValue < nValue1)
-			{
-				maxValue = nValue1;
-				maxPos = x;
-			}
-
-			if (minValue > nValue1)
-			{
-				minValue = nValue1;
-				minPos = x;
-			}
-		}
-
-		if (maxValue > 50)
-		{
-			EdgeY[y] = maxPos;
-			matOverlaid.data[(y * Width + maxPos) * 3 + 0] = (BYTE)0;
-			matOverlaid.data[(y * Width + maxPos) * 3 + 1] = (BYTE)0;
-			matOverlaid.data[(y * Width + maxPos) * 3 + 2] = (BYTE)255;
-		}
-
-		if (minValue < -50)
-		{
-			EdgeY2[y] = minPos;
-			matOverlaid.data[(y * Width + minPos) * 3 + 0] = (BYTE)0;
-			matOverlaid.data[(y * Width + minPos) * 3 + 1] = (BYTE)255;
-			matOverlaid.data[(y * Width + minPos) * 3 + 2] = (BYTE)0;
-		}
-	}
-
-	for (int x = 10; x < Width - 10; x++)
-	{
-		maxValue = 0;
-		minValue = 0;
-
-		for (int y = 10; y < Height - 10; y++)
-		{
-			nValue1 = (image[(y - 1) * Width + x] + image[(y - 2) * Width + x] + image[(y - 3) * Width + x])
-				- (image[(y + 1) * Width + x] + image[(y + 2) * Width + x] + image[(y + 3) * Width + x]);
-
-			if (maxValue < nValue1)
-			{
-				maxValue = nValue1;
-				maxPos = y;
-			}
-
-			if (minValue > nValue1)
-			{
-				minValue = nValue1;
-				minPos = y;
-			}
-		}
-
-		if (maxValue > 50)
-		{
-			EdgeX[x] = maxPos;
-			matOverlaid.data[(maxPos * Width + x) * 3 + 0] = (BYTE)0;
-			matOverlaid.data[(maxPos * Width + x) * 3 + 1] = (BYTE)128;
-			matOverlaid.data[(maxPos * Width + x) * 3 + 2] = (BYTE)255;
-		}
-
-		if (minValue < -50)
-		{
-			EdgeX2[x] = minPos;
-			matOverlaid.data[(minPos * Width + x) * 3 + 0] = (BYTE)255;
-			matOverlaid.data[(minPos * Width + x) * 3 + 1] = (BYTE)0;
-			matOverlaid.data[(minPos * Width + x) * 3 + 2] = (BYTE)0;
-		}
-	}
-
-
-	int nHistoX[4000] = { 0, };
-	int nHistoY[3000] = { 0, };
-
-	int nHistoX2[4000] = { 0, };
-	int nHistoY2[3000] = { 0, };
-
-	for (int x = 0; x < Width; x++)
-	{
-		nHistoX[EdgeX[x]]++;
-		nHistoX2[EdgeX2[x]]++;
-	}
-
-	minValue = 0;
-	maxValue = 0;
-	for (int x = 10; x < Width-10; x++)
-	{
-		nValue1 = nValue2 = 0;
-
-		for (int i = -4; i <= 4; i++)
-			nValue1 += nHistoX[x + i];
-
-		for (int i = -4; i <= 4; i++)
-			nValue2 += nHistoX2[x + i];
-
-		if (maxValue < nValue1)
-		{
-			maxPos = x;
-			maxValue = nValue1;
-		}
-
-		if (minValue < nValue2)
-		{
-			minPos = x;
-			minValue = nValue2;
-		}
-
-	}
-
-	cv::line(matOverlaid, cv::Point(0, maxPos), cv::Point(4000, maxPos), cv::Scalar(0, 128, 255), 5);
-	cv::line(matOverlaid, cv::Point(0, minPos), cv::Point(4000, minPos), cv::Scalar(0, 255, 0), 5);
-}
-
-void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
-{
-	// 전달된 이미지가 비어있는 경우 중단한다.
-	if (matProcessed.empty())
-	{
-		AfxMessageBox(_T("matProcessed is empty."));
-		return;
-	}
-
-	//cv::cvtColor(matProcessed, matProcessed, CV_8UC3);
-
 
 	const int Height = matProcessed.rows;
 	const int Width = matProcessed.cols;
@@ -916,7 +856,7 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 		for (int x = 10; x < Width - 10; x++)
 		{
 			nValue1 = (image[y * Width + x - 1] + image[y * Width + x - 2] + image[y * Width + x - 3])
-				- (image[y * Width + x + 1] + image[y * Width + x + 2] + image[y * Width + x + 3]);
+					- (image[y * Width + x + 1] + image[y * Width + x + 2] + image[y * Width + x + 3]);
 
 			if (maxValue < nValue1)
 			{
@@ -947,7 +887,6 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 			matOverlaid.data[(y * Width + minPos) * 3 + 2] = (BYTE)0;
 		}
 	}
-
 
 
 	for (int x = 10; x < Width - 10; x++)
@@ -1039,7 +978,9 @@ void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverl
 	//LogToParent(strLog);
 }
 
-void DlgVisionTest::mhFindContour2(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
+//cv::findContours();
+//cv::ContourApproximationModes
+void DlgVisionTest::mhFindContour(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes)
 {
 	// 전달된 이미지가 비어있는 경우 중단한다.
 	CV_Assert(!matProcessed.empty());
@@ -1418,7 +1359,7 @@ void DlgVisionTest::OnBnClickedBtnFindContour()
 	}
 
 	PerformanceTest timer;
-	// cv::filter2D 대신 직접 구현한 3x3 컨볼루션 사용
+	// 직접 구현한 FindContour 사용
 	mhFindContour(*m_refMatProcessed, *m_refMatOverlaid, eRetrievalModes::EXTERNAL);
 	double elapsedTime = timer.GetElapsedMilliseconds();
 
@@ -1429,5 +1370,30 @@ void DlgVisionTest::OnBnClickedBtnFindContour()
 
 	CString log, tmp;
 	log.Format(_T("[Process] Find Contour applied: [Total: %.3lfms]"), elapsedTime);
+	LogToParent(log);
+}
+
+void DlgVisionTest::OnBnClickedBtnHistogram()
+{
+	// 처리 대상 이미지가 유효한지 확인
+	if (m_refMatOverlaid == nullptr || m_refMatOverlaid->empty())
+	{
+		AfxMessageBox(_T("처리할 이미지가 없습니다. 먼저 이미지를 불러오세요."), MB_ICONWARNING);
+		return;
+	}
+
+	PerformanceTest timer;
+	// 직접 구현한 Histogram 사용
+	//jhHistogram(*m_refMatProcessed, *m_refMatOverlaid, eRetrievalModes::EXTERNAL);
+	mhHistogram(*m_refMatProcessed, *m_refMatOverlaid, eRetrievalModes::EXTERNAL);
+	double elapsedTime = timer.GetElapsedMilliseconds();
+
+	// 영상처리 직후 오버레이(Overlay)로 뷰 전환 — 라디오 체크 상태도 함께 갱신한다.
+	CheckRadioButton(IDC_RADIO_ORIGIN, IDC_RADIO_OVERLAY, IDC_RADIO_OVERLAY);
+	m_ViewTarget = eViewTarget::Overlay;
+	UpdateViewer();
+	
+	CString log, tmp;
+	log.Format(_T("[Process] Histogram applied: [Total: %.3lfms]"), elapsedTime);
 	LogToParent(log);
 }

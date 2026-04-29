@@ -87,6 +87,7 @@ private:
 
 	// 
 	void jhHistogram(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
+	void mhHistogram(const cv::Mat& matProcessed, cv::Mat& matOverlaid, eRetrievalModes retrievalModes);
 
 public:
 
@@ -119,4 +120,6 @@ private:
 	// 커널 Save / Load 버튼 — CreateKernelUI() 에서 3x3 그리드 하단에 동적 생성
 	CButton m_btnKernelSave;
 	CButton m_btnKernelLoad;
+public:
+	afx_msg void OnBnClickedBtnHistogram();
 };
